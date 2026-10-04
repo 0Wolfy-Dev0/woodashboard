@@ -1,4 +1,4 @@
-package fr.epita.assistants.yakamon.utils;
+package com.woodash.common;
 
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;

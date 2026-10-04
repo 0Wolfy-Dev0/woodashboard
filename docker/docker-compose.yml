@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: woodash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: woodash
+      POSTGRES_USER: woodash
+      POSTGRES_PASSWORD: woodash
+    ports:
+      - "5432:5432"
+    volumes:
+      - woodash-db-data:/var/lib/postgresql/data
+
+volumes:
+  woodash-db-data:

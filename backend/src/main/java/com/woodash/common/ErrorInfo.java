@@ -1,4 +1,4 @@
-package fr.epita.assistants.yakamon.utils;
+package com.woodash.common;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
