@@ -1,0 +1,694 @@
+openapi: 3.0.3
+info:
+  title: woodashboard API
+  description: |
+    REST API for woodashboard, a homelab dashboard with calendar events and todo lists.
+
+    **Authentication**: short-lived access token (JWT) sent as `Authorization: Bearer <token>`,
+    plus a long-lived refresh token used to get a new access token. Only the hash of the refresh
+    token is stored server side. Refresh tokens are rotated on every use.
+
+    **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local dev
+tags:
+  - name: Authentication
+  - name: Current user
+  - name: Todos
+  - name: Events
+  - name: Administration
+    description: ADMIN role only
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ------------------------------------------------------------------ AUTH
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Create a new account
+      description: New accounts always get the `USER` role.
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Login already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Get a new access token
+      description: Rotates the refresh token. The old one is revoked and can't be reused.
+      operationId: refresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Refresh token invalid, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Revokes the given refresh token.
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Logged out
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # -------------------------------------------------------------------- ME
+  /api/me:
+    get:
+      tags: [Current user]
+      summary: Get the authenticated user
+      operationId: getMe
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ----------------------------------------------------------------- TODOS
+  /api/todos/{userId}:
+    get:
+      tags: [Todos]
+      summary: List the todos of a user
+      description: A `USER` can only list their own todos. An `ADMIN` can list anyone's.
+      operationId: listTodosByUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - name: completed
+          in: query
+          description: Filter on completion state. Omit to get all.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Todos of the user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/todos:
+    post:
+      tags: [Todos]
+      summary: Create a todo
+      description: The todo is created for the authenticated user.
+      operationId: createTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoCreateRequest'
+      responses:
+        '201':
+          description: Todo created
+          headers:
+            Location:
+              description: URL of the new todo
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/todos/{id}:
+    patch:
+      tags: [Todos]
+      summary: Update a todo (partial)
+      description: Only the owner or an `ADMIN` can update. Only the fields sent are changed.
+      operationId: updateTodo
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdateRequest'
+      responses:
+        '200':
+          description: Updated todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Todos]
+      summary: Delete a todo
+      description: Only the owner or an `ADMIN` can delete.
+      operationId: deleteTodo
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------------- EVENTS
+  /api/events:
+    get:
+      tags: [Events]
+      summary: List events
+      description: |
+        Returns the events of the authenticated user.
+        Use `from` / `to` to get only the events overlapping a window (handy for a calendar view).
+      operationId: listEvents
+      parameters:
+        - name: from
+          in: query
+          description: Keep events ending at or after this moment
+          schema:
+            type: string
+            format: date-time
+            example: '2026-10-01T00:00:00'
+        - name: to
+          in: query
+          description: Keep events starting at or before this moment
+          schema:
+            type: string
+            format: date-time
+            example: '2026-10-31T23:59:59'
+      responses:
+        '200':
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Events]
+      summary: Create an event
+      description: The event is created for the authenticated user.
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCreateRequest'
+      responses:
+        '201':
+          description: Event created
+          headers:
+            Location:
+              description: URL of the new event
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/events/{id}:
+    patch:
+      tags: [Events]
+      summary: Update an event (partial)
+      description: Only the owner or an `ADMIN` can update. `endTime` must stay >= `startTime`.
+      operationId: updateEvent
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventUpdateRequest'
+      responses:
+        '200':
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Events]
+      summary: Delete an event
+      description: Only the owner or an `ADMIN` can delete.
+      operationId: deleteEvent
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ----------------------------------------------------------------- ADMIN
+  /api/admin/users:
+    get:
+      tags: [Administration]
+      summary: List all users
+      operationId: adminListUsers
+      responses:
+        '200':
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/users/{id}:
+    delete:
+      tags: [Administration]
+      summary: Delete a user
+      description: Also deletes their events, todos and refresh tokens (`ON DELETE CASCADE`).
+      operationId: adminDeleteUser
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/events:
+    get:
+      tags: [Administration]
+      summary: List all events (all users)
+      operationId: adminListEvents
+      responses:
+        '200':
+          description: All events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/todos:
+    get:
+      tags: [Administration]
+      summary: List all todos (all users)
+      operationId: adminListTodos
+      responses:
+        '200':
+          description: All todos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ===================================================================== COMPONENTS
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Resource id
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Id of the user owning the todos
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorInfo'
+    Unauthorized:
+      description: Missing, invalid or expired access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorInfo'
+    Forbidden:
+      description: Not allowed (not the owner, or not an admin)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorInfo'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorInfo'
+
+  schemas:
+    ErrorInfo:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: The player was not found in the database
+
+    Role:
+      type: string
+      enum: [USER, ADMIN]
+
+    # ---- auth
+    RegisterRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 64
+          example: alice
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          example: correct-horse-battery
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          example: alice
+        password:
+          type: string
+          format: password
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+          description: JWT to send in the Authorization header
+        refreshToken:
+          type: string
+          description: Opaque token, only returned here (never stored in clear server side)
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds
+          example: 900
+
+    # ---- user
+    UserResponse:
+      type: object
+      required: [id, login, role, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        login:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
+    # ---- todo
+    TodoCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: Update the Pi-hole
+        description:
+          type: string
+          nullable: true
+        completed:
+          type: boolean
+          default: false
+
+    TodoUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        completed:
+          type: boolean
+
+    TodoResponse:
+      type: object
+      required: [id, name, userId, completed, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+        completed:
+          type: boolean
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
+    # ---- event
+    EventCreateRequest:
+      type: object
+      required: [name, startTime, endTime]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: Backup check
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          example: '2026-10-12T18:00:00'
+        endTime:
+          type: string
+          format: date-time
+          description: Must be >= startTime
+          example: '2026-10-12T19:00:00'
+
+    EventUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    EventResponse:
+      type: object
+      required: [id, name, userId, startTime, endTime, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
