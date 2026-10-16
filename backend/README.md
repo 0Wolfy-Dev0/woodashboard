@@ -40,7 +40,8 @@ The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml` 
 ./mvnw test
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+> **_NOTE:_** Quarkus' Dev UI is available in dev mode at <http://localhost:8081/q/dev/>. Set
+> `HTTP_PORT` to override the backend port.
 
 ## Packaging and running the application
 
