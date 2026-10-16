@@ -3,6 +3,7 @@ package com.woodash.auth.repository;
 import com.woodash.auth.entity.RefreshToken;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,10 @@ public class RefreshTokenRepository implements PanacheRepositoryBase<RefreshToke
 
     public Optional<RefreshToken> findByHash(String hash) {
         return find("tokenHash", hash).firstResultOptional();
+    }
+
+    public Optional<RefreshToken> findByHashForUpdate(String hash) {
+        return find("tokenHash", hash).withLock(LockModeType.PESSIMISTIC_WRITE).firstResultOptional();
     }
 
     public long revokeAllForUser(UUID userId) {

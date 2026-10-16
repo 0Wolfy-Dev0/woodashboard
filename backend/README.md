@@ -18,6 +18,28 @@ You can run your application in dev mode that enables live coding using:
 ./mvnw quarkus:dev
 ```
 
+## API authentication
+
+Register with `POST /api/auth/register`, then log in with `POST /api/auth/login`. Use the returned
+`accessToken` as a Bearer token in Swagger's **Authorize** dialog. Access tokens last 15 minutes by
+default; `POST /api/auth/refresh` rotates the refresh token.
+
+For deployments, set `JWT_SECRET` to a long, random secret. The default key in
+`application.properties` is only for local development. New accounts have the `USER` role; to
+promote an account for testing admin endpoints, set its `users.role` to `ADMIN` in PostgreSQL and
+log in again to receive a token with the updated role.
+
+```shell script
+# in sql shell
+update uers set role = 'ADMIN' where login = 'user' ;
+```
+
+The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml` and can be run with:
+
+```shell
+./mvnw test
+```
+
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 
 ## Packaging and running the application

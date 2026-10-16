@@ -12,4 +12,12 @@ public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
     public List<Todo> listByUser(UUID userId) {
         return list("user.id = ?1 order by completed, creationTime", userId);
     }
+
+    public List<Todo> listByUserAndCompleted(UUID userId, boolean completed) {
+        return list("user.id = ?1 and completed = ?2 order by creationTime", userId, completed);
+    }
+
+    public List<Todo> listAllOrdered() {
+        return list("order by completed, creationTime");
+    }
 }

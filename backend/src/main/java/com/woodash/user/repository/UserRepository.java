@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -23,11 +24,16 @@ public class UserRepository implements PanacheRepositoryBase<User, UUID> {
     }
 
     @Transactional
-    public void createUser(String login, String password) {
+    public User createUser(String login, String password) {
         User user = new User();
         user.setLogin(login);
         user.setPasswordHash(BcryptUtil.bcryptHash(password));
         user.setRole(Role.USER);
-        this.persist(user);
+        this.persistAndFlush(user);
+        return user;
+    }
+
+    public List<User> listAll() {
+        return list("order by creationTime");
     }
 }

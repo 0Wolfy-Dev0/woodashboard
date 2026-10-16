@@ -11,7 +11,12 @@ import static jakarta.ws.rs.core.Response.Status;
 @RequiredArgsConstructor
 public enum ErrorCode {
     INVALID_REQUEST_BODY(Status.BAD_REQUEST, "Invalid argument of the request body"),
-    LOGIN_ALREADY_TAKEN(Status.CONFLICT, "Login is already taken");
+    LOGIN_ALREADY_TAKEN(Status.CONFLICT, "Login is already taken"),
+    INVALID_CREDENTIALS(Status.UNAUTHORIZED, "Invalid login or password"),
+    INVALID_REFRESH_TOKEN(Status.UNAUTHORIZED, "Refresh token is invalid, expired or revoked"),
+    UNAUTHORIZED(Status.UNAUTHORIZED, "Missing, invalid or expired access token"),
+    FORBIDDEN(Status.FORBIDDEN, "You are not allowed to access this resource"),
+    NOT_FOUND(Status.NOT_FOUND, "Resource not found");
 
     private final Response.Status errorCode;
 
