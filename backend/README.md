@@ -29,8 +29,10 @@ cp -n docker/.env.example docker/.env
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-Compose supplies the secret to the running API container; it is not copied into the image. The API
-is available at <http://localhost:8081>.
+Compose supplies the secret to the running API container; it is not copied into the image. The
+frontend is available at <http://localhost:8080>; its Nginx server proxies `/api` to the backend.
+The backend remains directly available at <http://localhost:8081>, and Swagger is also proxied at
+<http://localhost:8080/q/swagger-ui/>.
 
 ## API authentication
 
