@@ -18,4 +18,16 @@ public class EventRepository implements PanacheRepositoryBase<Event, UUID> {
     public List<Event> listByUserBetween(UUID userId, LocalDateTime from, LocalDateTime to) {
         return list("user.id = ?1 and endTime >= ?2 and startTime <= ?3 order by startTime", userId, from, to);
     }
+
+    public List<Event> listByUserFrom(UUID userId, LocalDateTime from) {
+        return list("user.id = ?1 and endTime >= ?2 order by startTime", userId, from);
+    }
+
+    public List<Event> listByUserTo(UUID userId, LocalDateTime to) {
+        return list("user.id = ?1 and startTime <= ?2 order by startTime", userId, to);
+    }
+
+    public List<Event> listAllOrdered() {
+        return list("order by startTime");
+    }
 }

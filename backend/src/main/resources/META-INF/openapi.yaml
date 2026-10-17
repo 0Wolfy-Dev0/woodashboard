@@ -11,8 +11,8 @@ info:
     **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
   version: 1.0.0
 servers:
-  - url: http://localhost:8080
-    description: Local dev
+  - url: /
+    description: Same origin (port 8081 locally; reverse proxy in deployments)
 tags:
   - name: Authentication
   - name: Current user
