@@ -124,6 +124,7 @@ PostgreeSQL
 
 ### V1.2.0:
 - front/back : add groups so many people can share the same events (and todo)
+- front/back : we can group todo, like basics app todo (folder if todo)
 
 ### V1.3.0:
 - front/back : add preiod event, like brithday... (every 3 days...)
