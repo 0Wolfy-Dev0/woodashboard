@@ -5,12 +5,34 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: woodash
-      POSTGRES_USER: woodash
-      POSTGRES_PASSWORD: woodash
+      POSTGRES_USER: ${DB_USER:-woodash}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-woodash}
     ports:
       - "5432:5432"
     volumes:
       - woodash-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rest-api:
+    build:
+      context: ../backend
+    container_name: rest-api
+    env_file:
+      - .env
+    environment:
+      DB_URL: "jdbc:postgresql://db:5432/woodash"
+      DB_USER: ${DB_USER:-woodash}
+      DB_PASSWORD: ${DB_PASSWORD:-woodash}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in docker/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
 
 volumes:
   woodash-db-data:

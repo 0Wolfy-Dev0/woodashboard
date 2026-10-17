@@ -18,6 +18,20 @@ You can run your application in dev mode that enables live coding using:
 ./mvnw quarkus:dev
 ```
 
+## Running with Docker Compose
+
+From the repository root, if `docker/.env` does not exist yet, copy the template and set
+`JWT_SECRET` to a random value (for example, the output of `openssl rand -hex 32`). Compose reads
+the file beside `docker-compose.yml`, and `env_file` passes its values into the API container:
+
+```shell
+cp -n docker/.env.example docker/.env
+docker compose -f docker/docker-compose.yml up --build
+```
+
+Compose supplies the secret to the running API container; it is not copied into the image. The API
+is available at <http://localhost:8081>.
+
 ## API authentication
 
 Register with `POST /api/auth/register`, then log in with `POST /api/auth/login`. Use the returned
