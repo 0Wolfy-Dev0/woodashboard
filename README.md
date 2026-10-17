@@ -114,17 +114,6 @@ PostgreeSQL
 | LocalDateTime | last_modification_time |
 | Boolean | completed |
 
-### After : 
-- groups
-- period
-- refresh_tokens
-    - id
-    - user_id
-    - token_hash
-    - creation_time
-    - expiration_time
-    - revoked
-
 ## TODO:
 ### V1.1.0: 
 - frontend : when i say to use nginx its for using port 80 and then passproxy to the backend (the default.conf example
