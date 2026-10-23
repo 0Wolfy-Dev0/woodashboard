@@ -1,9 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import {
-  Bell,
   CalendarDays,
   CheckSquare,
-  ChevronRight,
   CircleUserRound,
   LayoutDashboard,
   LogOut,
@@ -187,8 +185,6 @@ export default function App() {
           <button className="icon-button sidebar-close" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu"><X size={18} /></button>
         </div>
 
-        <div className="workspace-switcher"><span className="workspace-avatar">W</span><span><strong>Home workspace</strong><small>Personal dashboard</small></span><ChevronRight size={15} /></div>
-
         <div className="sidebar-label">YOUR SPACE</div>
         <nav className="sidebar-nav" aria-label="Main navigation">
           {navigation.map(({ key, label, icon: Icon }) => (
@@ -226,7 +222,6 @@ export default function App() {
           <div className="topbar-title"><span className="eyebrow">HOME DASHBOARD</span><strong>{pageTitles[displayPage]}</strong></div>
           <div className="topbar-right">
             <span className="topbar-date">{new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
-            <button className="icon-button topbar-bell" onClick={() => navigate('calendar')} aria-label="View upcoming events"><Bell size={18} /><i /></button>
             {createButton}
             <button className="topbar-avatar" onClick={() => navigate('profile')} aria-label="Open profile">{user.login.slice(0, 1).toUpperCase()}</button>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   CheckCheck,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { api } from '../api'
 import { formatDate } from '../format'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { TodoItem, ToastNotice, User } from '../types'
 
 type TodoFilter = 'all' | 'open' | 'completed'
@@ -29,19 +30,27 @@ export function TodosPage({ user, refreshVersion, onCreateTodo, onEditTodo, onNo
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const loadedRef = useRef(false)
+
+  const loadTodos = useCallback(async (background = false) => {
+    if (!loadedRef.current) setLoading(true)
+    const completed = filter === 'all' ? undefined : filter === 'completed'
+    try {
+      const result = await api.listTodos(user.id, completed)
+      setTodos(result)
+      loadedRef.current = true
+    } catch (error) {
+      if (!background) onNotice(error instanceof Error ? error.message : 'Could not load tasks.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [user.id, filter, onNotice])
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
-    const completed = filter === 'all' ? undefined : filter === 'completed'
-    api.listTodos(user.id, completed)
-      .then((result) => { if (active) setTodos(result) })
-      .catch((error: unknown) => {
-        if (active) onNotice(error instanceof Error ? error.message : 'Could not load tasks.', 'error')
-      })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [user.id, filter, refreshVersion, onNotice])
+    void loadTodos()
+  }, [loadTodos, refreshVersion])
+
+  useAutoRefresh(() => loadTodos(true))
 
   const filteredTodos = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()

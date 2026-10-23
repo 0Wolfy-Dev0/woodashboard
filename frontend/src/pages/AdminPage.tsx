@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, CheckSquare, LoaderCircle, Search, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, formatTime } from '../format'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, TodoItem, ToastNotice, User } from '../types'
 
 type AdminTab = 'users' | 'events' | 'todos'
@@ -22,23 +23,32 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [loading, setLoading] = useState(true)
+  const loadedRef = useRef(false)
+
+  const loadAdmin = useCallback(async (background = false) => {
+    if (!loadedRef.current) setLoading(true)
+    try {
+      const [allUsers, allEvents, allTodos] = await Promise.all([
+        api.adminListUsers(),
+        api.adminListEvents(),
+        api.adminListTodos(),
+      ])
+      setUsers(allUsers)
+      setEvents(allEvents)
+      setTodos(allTodos)
+      loadedRef.current = true
+    } catch (error) {
+      if (!background) onNotice(error instanceof Error ? error.message : 'Could not load administration data.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [onNotice])
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
-    Promise.all([api.adminListUsers(), api.adminListEvents(), api.adminListTodos()])
-      .then(([allUsers, allEvents, allTodos]) => {
-        if (!active) return
-        setUsers(allUsers)
-        setEvents(allEvents)
-        setTodos(allTodos)
-      })
-      .catch((error: unknown) => {
-        if (active) onNotice(error instanceof Error ? error.message : 'Could not load administration data.', 'error')
-      })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [refreshVersion, onNotice])
+    void loadAdmin()
+  }, [loadAdmin, refreshVersion])
+
+  useAutoRefresh(() => loadAdmin(true))
 
   const userNames = useMemo(() => new Map(users.map((user) => [user.id, user.login])), [users])
   const normalizedSearch = search.trim().toLocaleLowerCase()

@@ -117,17 +117,17 @@ PostgreeSQL
 ## TODO:
 ### V1.1.0: 
 - frontend : when i say to use nginx its for using port 80 and then passproxy to the backend (the default.conf example
-  was just an example) you can arrange it,
-- frontend : refresh is auto?, it should be
-- frontend : no need of the ntification icon (on clikc it just go to calendar)
+  was just an example) you can arrange it if its not done yet
+- frontend : refresh the calendar and other is auto?, it should be
+- frontend : no need of the notification icon (on click it just go to calendar)
 - frontend : on the menu 'home worksapece' is not used, why? just remove it so no?
 
-### V1.2.0:
+after
 - front/back : add groups so many people can share the same events (and todo)
 - front/back : we can group todo, like basics app todo (folder if todo)
 
-### V1.3.0:
-- front/back : add preiod event, like brithday... (every 3 days...)
+- front/back : add preiod event, like brithday... (every 3 days...), and possible to set an event for a all day, no hour
+  needed
 
-### V1.4.0:
+### V1.2.0:
 - front/back : maybe add that we can change password (so admin also)
