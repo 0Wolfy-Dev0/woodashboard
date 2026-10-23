@@ -34,6 +34,12 @@ public class TodoResource {
     CurrentUser currentUser;
 
     @GET
+    public List<TodoResponse> list(@QueryParam("completed") Boolean completed,
+            @QueryParam("groupId") UUID groupId) {
+        return todoService.listAccessible(currentUser.getUserId(), completed, groupId, currentUser);
+    }
+
+    @GET
     @Path("/{userId}")
     public List<TodoResponse> listByUser(@PathParam("userId") UUID userId,
             @QueryParam("completed") Boolean completed) {
@@ -43,7 +49,7 @@ public class TodoResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response create(TodoCreateRequest request) {
-        TodoResponse todo = todoService.create(request, currentUser.getUserId());
+        TodoResponse todo = todoService.create(request, currentUser);
         return Response.created(URI.create("/api/todos/" + todo.getId())).entity(todo).build();
     }
 

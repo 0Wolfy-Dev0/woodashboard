@@ -2,11 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { CalendarPlus, LoaderCircle, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { fromDateTimeInput, toDateTimeInput } from '../format'
-import type { EventItem, EventPayload } from '../types'
+import type { EventItem, EventPayload, Group } from '../types'
 
 interface EventFormModalProps {
   event?: EventItem
   initialStart?: Date
+  groups: Group[]
   onClose: () => void
   onSave: (payload: EventPayload) => Promise<void>
   onDelete?: () => Promise<void>
@@ -28,12 +29,13 @@ function defaultTimes(initialStart?: Date): { start: string; end: string } {
   return { start: toInput(start), end: toInput(end) }
 }
 
-export function EventFormModal({ event, initialStart, onClose, onSave, onDelete }: EventFormModalProps) {
+export function EventFormModal({ event, initialStart, groups, onClose, onSave, onDelete }: EventFormModalProps) {
   const defaults = defaultTimes(initialStart)
   const [name, setName] = useState(event?.name ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
   const [startTime, setStartTime] = useState(event ? toDateTimeInput(event.startTime) : defaults.start)
   const [endTime, setEndTime] = useState(event ? toDateTimeInput(event.endTime) : defaults.end)
+  const [groupId, setGroupId] = useState(event?.groupId ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -53,6 +55,7 @@ export function EventFormModal({ event, initialStart, onClose, onSave, onDelete 
         description: description.trim() || null,
         startTime: fromDateTimeInput(startTime),
         endTime: fromDateTimeInput(endTime),
+        groupId: groupId || null,
       })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save this event.')
@@ -117,6 +120,21 @@ export function EventFormModal({ event, initialStart, onClose, onSave, onDelete 
             <input type="datetime-local" required value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </label>
         </div>
+        {event ? (
+          <p className="field-hint">
+            {event.groupId
+              ? `Shared with ${groups.find((group) => group.id === event.groupId)?.name ?? 'a group'}`
+              : 'Private event'}
+          </p>
+        ) : (
+          <label className="field">
+            <span>Shared with <small>Optional</small></span>
+            <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+              <option value="">Only me</option>
+              {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select>
+          </label>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
       </form>
     </Modal>

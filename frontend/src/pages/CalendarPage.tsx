@@ -8,9 +8,10 @@ import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, RefreshCw, Sparkles }
 import { api } from '../api'
 import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import type { EventItem, ToastNotice } from '../types'
+import type { EventItem, Group, ToastNotice } from '../types'
 
 interface CalendarPageProps {
+  groups: Group[]
   refreshVersion: number
   onCreateEvent: (start: Date) => void
   onEditEvent: (event: EventItem) => void
@@ -22,8 +23,9 @@ interface DateRange {
   end: Date
 }
 
-export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
+export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
   const [events, setEvents] = useState<EventItem[]>([])
+  const [groupId, setGroupId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const rangeRef = useRef<DateRange | null>(null)
@@ -36,7 +38,8 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
     try {
       // FullCalendar's visible range end is exclusive; the API's `to` is inclusive.
       const inclusiveEnd = new Date(range.end.getTime() - 1000)
-      const result = await api.listEvents(formatLocalDateTime(range.start), formatLocalDateTime(inclusiveEnd))
+      const result = await api.listEvents(formatLocalDateTime(range.start), formatLocalDateTime(inclusiveEnd),
+        groupId || undefined)
       setEvents(result.sort((a, b) => a.startTime.localeCompare(b.startTime)))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Could not load calendar events.'
@@ -45,11 +48,15 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
     } finally {
       if (!background) setLoading(false)
     }
-  }, [onNotice])
+  }, [groupId, onNotice])
 
   useEffect(() => {
     void loadEvents()
   }, [loadEvents, refreshVersion])
+
+  useEffect(() => {
+    if (groupId && !groups.some((group) => group.id === groupId)) setGroupId('')
+  }, [groupId, groups])
 
   useAutoRefresh(() => loadEvents(true))
 
@@ -82,6 +89,10 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
           <p>Plans, little milestones, and everything in between.</p>
         </div>
         <div className="heading-actions">
+          <select className="select-control" value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="Filter events by group">
+            <option value="">All calendars</option>
+            {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
           <button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>
             {loading ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={15} />} Refresh
           </button>

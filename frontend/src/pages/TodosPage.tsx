@@ -13,20 +13,21 @@ import {
 import { api } from '../api'
 import { formatDate } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import type { TodoItem, ToastNotice, User } from '../types'
+import type { Group, TodoItem, ToastNotice } from '../types'
 
 type TodoFilter = 'all' | 'open' | 'completed'
 
 interface TodosPageProps {
-  user: User
+  groups: Group[]
   refreshVersion: number
   onCreateTodo: () => void
   onEditTodo: (todo: TodoItem) => void
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
 }
 
-export function TodosPage({ user, refreshVersion, onCreateTodo, onEditTodo, onNotice }: TodosPageProps) {
+export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, onNotice }: TodosPageProps) {
   const [filter, setFilter] = useState<TodoFilter>('open')
+  const [groupId, setGroupId] = useState('')
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -36,7 +37,7 @@ export function TodosPage({ user, refreshVersion, onCreateTodo, onEditTodo, onNo
     if (!loadedRef.current) setLoading(true)
     const completed = filter === 'all' ? undefined : filter === 'completed'
     try {
-      const result = await api.listTodos(user.id, completed)
+      const result = await api.listAccessibleTodos(completed, groupId || undefined)
       setTodos(result)
       loadedRef.current = true
     } catch (error) {
@@ -44,11 +45,15 @@ export function TodosPage({ user, refreshVersion, onCreateTodo, onEditTodo, onNo
     } finally {
       setLoading(false)
     }
-  }, [user.id, filter, onNotice])
+  }, [filter, groupId, onNotice])
 
   useEffect(() => {
     void loadTodos()
   }, [loadTodos, refreshVersion])
+
+  useEffect(() => {
+    if (groupId && !groups.some((group) => group.id === groupId)) setGroupId('')
+  }, [groupId, groups])
 
   useAutoRefresh(() => loadTodos(true))
 
@@ -97,10 +102,16 @@ export function TodosPage({ user, refreshVersion, onCreateTodo, onEditTodo, onNo
               </button>
             ))}
           </div>
-          <label className="search-field todo-search">
-            <Search size={16} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a task" aria-label="Search tasks" />
-          </label>
+          <div className="todo-toolbar-right">
+            <select className="select-control" value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="Filter tasks by group">
+              <option value="">All lists</option>
+              {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select>
+            <label className="search-field todo-search">
+              <Search size={16} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a task" aria-label="Search tasks" />
+            </label>
+          </div>
         </div>
 
         <div className="todo-list-heading"><span>{loading ? 'Loading tasks…' : `${filteredTodos.length} ${countLabel}`}</span><span>FILTERED BY COMPLETION ON THE SERVER</span></div>

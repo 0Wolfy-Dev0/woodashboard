@@ -19,11 +19,28 @@ export interface Session extends TokenResponse {
   expiresAt: number
 }
 
+export interface Group {
+  id: string
+  name: string
+  description: string | null
+  ownerId: string
+  ownerLogin: string
+  members: User[]
+  creationTime: string
+  lastModificationTime: string
+}
+
+export interface GroupPayload {
+  name: string
+  description: string | null
+}
+
 export interface EventItem {
   id: string
   name: string
   description: string | null
   userId: string
+  groupId: string | null
   startTime: string
   endTime: string
   creationTime: string
@@ -35,6 +52,7 @@ export interface EventPayload {
   description: string | null
   startTime: string
   endTime: string
+  groupId: string | null
 }
 
 export interface TodoItem {
@@ -42,6 +60,7 @@ export interface TodoItem {
   name: string
   description: string | null
   userId: string
+  groupId: string | null
   completed: boolean
   creationTime: string
   lastModificationTime: string
@@ -51,9 +70,10 @@ export interface TodoPayload {
   name: string
   description: string | null
   completed?: boolean
+  groupId: string | null
 }
 
-export type Page = 'home' | 'calendar' | 'todos' | 'profile' | 'admin'
+export type Page = 'home' | 'calendar' | 'todos' | 'groups' | 'profile' | 'admin'
 
 export type ToastNotice = {
   id: number

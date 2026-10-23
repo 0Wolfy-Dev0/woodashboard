@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
 import com.woodash.common.ErrorCode;
+import com.woodash.group.entity.Group;
+import com.woodash.group.service.GroupAccessService;
 import com.woodash.todo.entity.Todo;
 import com.woodash.todo.repository.TodoRepository;
 import com.woodash.todo.rest.dto.TodoCreateRequest;
@@ -26,6 +28,18 @@ public class TodoService {
     @Inject
     UserRepository userRepository;
 
+    @Inject
+    GroupAccessService groupAccessService;
+
+    public List<TodoResponse> listAccessible(UUID userId, Boolean completed, UUID groupId, CurrentUser currentUser) {
+        if (groupId != null) {
+            groupAccessService.requireVisibleGroup(groupId, currentUser);
+        }
+        return todoRepository.listAccessible(userId, completed, groupId).stream()
+                .map(TodoResponse::from)
+                .toList();
+    }
+
     public List<TodoResponse> listByUser(UUID userId, Boolean completed, CurrentUser currentUser) {
         if (userRepository.findByIdOptional(userId).isEmpty()) {
             ErrorCode.NOT_FOUND.throwException();
@@ -37,15 +51,19 @@ public class TodoService {
     }
 
     @Transactional
-    public TodoResponse create(TodoCreateRequest request, UUID userId) {
+    public TodoResponse create(TodoCreateRequest request, CurrentUser currentUser) {
         validateName(request == null ? null : request.getName());
+        UUID userId = currentUser.getUserId();
         User user = userRepository.findByIdOptional(userId).orElseThrow(ErrorCode.NOT_FOUND::getException);
+        Group group = request.getGroupId() == null ? null
+                : groupAccessService.requireVisibleGroup(request.getGroupId(), currentUser);
 
         Todo todo = new Todo();
         todo.setName(request.getName());
         todo.setDescription(request.getDescription());
         todo.setCompleted(Boolean.TRUE.equals(request.getCompleted()));
         todo.setUser(user);
+        todo.setSharedGroup(group);
         todoRepository.persistAndFlush(todo);
         return TodoResponse.from(todo);
     }
@@ -56,7 +74,7 @@ public class TodoService {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
         Todo todo = todoRepository.findByIdOptional(id).orElseThrow(ErrorCode.NOT_FOUND::getException);
-        currentUser.requireOwnerOrAdmin(todo.getUser().getId());
+        groupAccessService.requireItemAccess(todo.getUser().getId(), todo.getSharedGroup(), currentUser);
 
         if (request.hasName()) {
             validateName(request.getName());
@@ -79,7 +97,7 @@ public class TodoService {
     @Transactional
     public void delete(UUID id, CurrentUser currentUser) {
         Todo todo = todoRepository.findByIdOptional(id).orElseThrow(ErrorCode.NOT_FOUND::getException);
-        currentUser.requireOwnerOrAdmin(todo.getUser().getId());
+        groupAccessService.requireItemAccess(todo.getUser().getId(), todo.getSharedGroup(), currentUser);
         todoRepository.delete(todo);
     }
 

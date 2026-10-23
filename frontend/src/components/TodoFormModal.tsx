@@ -1,19 +1,21 @@
 import { useState, type FormEvent } from 'react'
 import { Check, LoaderCircle, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
-import type { TodoItem, TodoPayload } from '../types'
+import type { Group, TodoItem, TodoPayload } from '../types'
 
 interface TodoFormModalProps {
   todo?: TodoItem
+  groups: Group[]
   onClose: () => void
   onSave: (payload: TodoPayload) => Promise<void>
   onDelete?: () => Promise<void>
 }
 
-export function TodoFormModal({ todo, onClose, onSave, onDelete }: TodoFormModalProps) {
+export function TodoFormModal({ todo, groups, onClose, onSave, onDelete }: TodoFormModalProps) {
   const [name, setName] = useState(todo?.name ?? '')
   const [description, setDescription] = useState(todo?.description ?? '')
   const [completed, setCompleted] = useState(todo?.completed ?? false)
+  const [groupId, setGroupId] = useState(todo?.groupId ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -23,7 +25,7 @@ export function TodoFormModal({ todo, onClose, onSave, onDelete }: TodoFormModal
     setError('')
     setSaving(true)
     try {
-      await onSave({ name: name.trim(), description: description.trim() || null, completed })
+      await onSave({ name: name.trim(), description: description.trim() || null, completed, groupId: groupId || null })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save this task.')
     } finally {
@@ -82,6 +84,21 @@ export function TodoFormModal({ todo, onClose, onSave, onDelete }: TodoFormModal
           <span className="checkbox-custom"><Check size={13} /></span>
           <span>Mark as completed</span>
         </label>
+        {todo ? (
+          <p className="field-hint">
+            {todo.groupId
+              ? `Shared with ${groups.find((group) => group.id === todo.groupId)?.name ?? 'a group'}`
+              : 'Private task'}
+          </p>
+        ) : (
+          <label className="field">
+            <span>Shared with <small>Optional</small></span>
+            <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+              <option value="">Only me</option>
+              {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select>
+          </label>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
       </form>
     </Modal>

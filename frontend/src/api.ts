@@ -2,6 +2,8 @@ import { clearSession, readSession, saveSession } from './session'
 import type {
   EventItem,
   EventPayload,
+  Group,
+  GroupPayload,
   TodoItem,
   TodoPayload,
   TokenResponse,
@@ -148,8 +150,33 @@ export const api = {
 
   getMe: () => request<User>('/me'),
 
-  listEvents: (from?: string, to?: string) =>
-    request<EventItem[]>(`/events${queryString({ from, to })}`),
+  listGroups: () => request<Group[]>('/groups'),
+
+  createGroup: (payload: GroupPayload) =>
+    request<Group>('/groups', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateGroup: (id: string, payload: Partial<GroupPayload>) =>
+    request<Group>(`/groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteGroup: (id: string) =>
+    request<void>(`/groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  addGroupMember: (id: string, login: string) =>
+    request<Group>(`/groups/${encodeURIComponent(id)}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ login }),
+    }),
+
+  removeGroupMember: (id: string, userId: string) =>
+    request<void>(`/groups/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    }),
+
+  listEvents: (from?: string, to?: string, groupId?: string) =>
+    request<EventItem[]>(`/events${queryString({ from, to, groupId })}`),
 
   createEvent: (payload: EventPayload) =>
     request<EventItem>('/events', { method: 'POST', body: JSON.stringify(payload) }),
@@ -167,6 +194,9 @@ export const api = {
     request<TodoItem[]>(
       `/todos/${encodeURIComponent(userId)}${queryString({ completed })}`,
     ),
+
+  listAccessibleTodos: (completed?: boolean, groupId?: string) =>
+    request<TodoItem[]>(`/todos${queryString({ completed, groupId })}`),
 
   createTodo: (payload: TodoPayload) =>
     request<TodoItem>('/todos', { method: 'POST', body: JSON.stringify(payload) }),

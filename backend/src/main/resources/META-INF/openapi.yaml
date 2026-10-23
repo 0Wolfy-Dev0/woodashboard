@@ -18,6 +18,7 @@ tags:
   - name: Current user
   - name: Todos
   - name: Events
+  - name: Groups
   - name: Administration
     description: ADMIN role only
 
@@ -175,6 +176,36 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /api/todos:
+    get:
+      tags: [Todos]
+      summary: List accessible todos
+      description: Returns personal todos and todos shared with groups the authenticated user belongs to.
+      operationId: listAccessibleTodos
+      parameters:
+        - name: completed
+          in: query
+          description: Filter on completion state. Omit to get all.
+          schema:
+            type: boolean
+        - name: groupId
+          in: query
+          description: Only return todos shared with this group
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Accessible todos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       tags: [Todos]
       summary: Create a todo
@@ -255,8 +286,9 @@ paths:
       tags: [Events]
       summary: List events
       description: |
-        Returns the events of the authenticated user.
+        Returns personal events and events shared with groups the authenticated user belongs to.
         Use `from` / `to` to get only the events overlapping a window (handy for a calendar view).
+        Use `groupId` to show only one group's events.
       operationId: listEvents
       parameters:
         - name: from
@@ -273,6 +305,12 @@ paths:
             type: string
             format: date-time
             example: '2026-10-31T23:59:59'
+        - name: groupId
+          in: query
+          description: Only return events shared with this group
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Events
@@ -286,6 +324,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       tags: [Events]
       summary: Create an event
@@ -353,6 +393,178 @@ paths:
       responses:
         '204':
           description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------------- GROUPS
+  /api/groups:
+    get:
+      tags: [Groups]
+      summary: List groups of the authenticated user
+      operationId: listGroups
+      responses:
+        '200':
+          description: Groups the user belongs to
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Groups]
+      summary: Create a group
+      description: The creator becomes the group owner and first member.
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupCreateRequest'
+      responses:
+        '201':
+          description: Group created
+          headers:
+            Location:
+              description: URL of the new group
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/groups/{id}:
+    get:
+      tags: [Groups]
+      summary: Get a group
+      description: Members and admins can access a group.
+      operationId: getGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Groups]
+      summary: Update a group
+      description: Only the owner or an admin can update a group.
+      operationId: updateGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupUpdateRequest'
+      responses:
+        '200':
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Groups]
+      summary: Delete a group
+      description: Only the owner or an admin can delete a group. Its events, todos and memberships are deleted too.
+      operationId: deleteGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/groups/{id}/members:
+    post:
+      tags: [Groups]
+      summary: Add a member by login
+      description: Only the group owner or an admin can add members.
+      operationId: addGroupMember
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMemberRequest'
+      responses:
+        '200':
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User is already a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/groups/{id}/members/{userId}:
+    delete:
+      tags: [Groups]
+      summary: Remove a member
+      description: The owner or an admin can remove anyone except the owner. A member can remove themselves.
+      operationId: removeGroupMember
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Member removed
+        '400':
+          description: The group owner cannot be removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -573,6 +785,66 @@ components:
           type: string
           format: date-time
 
+    # ---- group
+    GroupCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Household
+        description:
+          type: string
+          nullable: true
+
+    GroupUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+
+    GroupMemberRequest:
+      type: object
+      required: [login]
+      properties:
+        login:
+          type: string
+          example: alice
+
+    GroupResponse:
+      type: object
+      required: [id, name, ownerId, ownerLogin, members, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        ownerId:
+          type: string
+          format: uuid
+        ownerLogin:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
     # ---- todo
     TodoCreateRequest:
       type: object
@@ -588,6 +860,11 @@ components:
         completed:
           type: boolean
           default: false
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Share this todo with a group the user belongs to
 
     TodoUpdateRequest:
       type: object
@@ -617,6 +894,10 @@ components:
         userId:
           type: string
           format: uuid
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
         completed:
           type: boolean
         creationTime:
@@ -647,6 +928,11 @@ components:
           format: date-time
           description: Must be >= startTime
           example: '2026-10-12T19:00:00'
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Share this event with a group the user belongs to
 
     EventUpdateRequest:
       type: object
@@ -680,6 +966,10 @@ components:
         userId:
           type: string
           format: uuid
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
         startTime:
           type: string
           format: date-time

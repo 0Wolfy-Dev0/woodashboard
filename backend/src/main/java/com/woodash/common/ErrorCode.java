@@ -16,7 +16,9 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(Status.UNAUTHORIZED, "Refresh token is invalid, expired or revoked"),
     UNAUTHORIZED(Status.UNAUTHORIZED, "Missing, invalid or expired access token"),
     FORBIDDEN(Status.FORBIDDEN, "You are not allowed to access this resource"),
-    NOT_FOUND(Status.NOT_FOUND, "Resource not found");
+    NOT_FOUND(Status.NOT_FOUND, "Resource not found"),
+    GROUP_MEMBER_ALREADY_EXISTS(Status.CONFLICT, "User is already a member of this group"),
+    CANNOT_REMOVE_GROUP_OWNER(Status.BAD_REQUEST, "The group owner cannot be removed");
 
     private final Response.Status errorCode;
 

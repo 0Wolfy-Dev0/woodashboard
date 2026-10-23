@@ -30,9 +30,9 @@ docker compose -f docker/docker-compose.yml up --build
 ```
 
 Compose supplies the secret to the running API container; it is not copied into the image. The
-frontend is available at <http://localhost:8080>; its Nginx server proxies `/api` to the backend.
-The backend remains directly available at <http://localhost:8081>, and Swagger is also proxied at
-<http://localhost:8080/q/swagger-ui/>.
+frontend is available at <http://localhost:8080>; its Nginx server proxies `/api` and `/q` to the
+backend. The API is not published directly by Compose; use <http://localhost:8080/q/swagger-ui/>.
+When running Quarkus in dev mode outside Docker, it listens on <http://localhost:8081>.
 
 ## API authentication
 
@@ -47,12 +47,21 @@ log in again to receive a token with the updated role.
 
 ```shell script
 # in sql shell
-update uers set role = 'ADMIN' where login = 'user' ;
+update users set role = 'ADMIN' where login = 'user' ;
 ```
 
-The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml` and can be run with:
+## Group sharing
+
+Users can create groups, add members by login, and share events/todos with a group. Any group member
+can edit or delete shared items; only the group owner or an admin can manage the group and its
+members. Group endpoints are documented in the root `README.md` and in Swagger.
+
+The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml`. Start it first if
+needed, then run:
 
 ```shell
+docker compose -f docker/docker-compose.yml up -d db
+cd backend
 ./mvnw test
 ```
 

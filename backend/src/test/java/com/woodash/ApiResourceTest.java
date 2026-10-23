@@ -353,6 +353,126 @@ class ApiResourceTest {
                 .then().statusCode(404).body("message", equalTo("Resource not found"));
     }
 
+    @Test
+    void groupEndpointsShareEventsAndTodosWithMembersAndEnforceMembership() {
+        TestUser owner = createUser("group-owner");
+        TestUser member = createUser("group-member");
+        TestUser outsider = createUser("group-outsider");
+        TokenPair ownerTokens = login(owner);
+        TokenPair memberTokens = login(member);
+        TokenPair outsiderTokens = login(outsider);
+
+        Response createGroup = given().auth().oauth2(ownerTokens.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "Household", "description", "Shared plans"))
+                .when().post("/api/groups");
+        createGroup.then().statusCode(201)
+                .header("Location", matchesPattern(".*/api/groups/[0-9a-fA-F-]{36}"))
+                .body("id", matchesPattern("[0-9a-fA-F-]{36}"))
+                .body("name", equalTo("Household"))
+                .body("description", equalTo("Shared plans"))
+                .body("ownerId", equalTo(owner.id()))
+                .body("ownerLogin", equalTo(owner.login()))
+                .body("members.size()", equalTo(1))
+                .body("members[0].login", equalTo(owner.login()))
+                .body("creationTime", notNullValue())
+                .body("lastModificationTime", notNullValue());
+        String groupId = createGroup.path("id");
+
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/groups")
+                .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(groupId));
+        given().auth().oauth2(outsiderTokens.accessToken()).when().get("/api/groups")
+                .then().statusCode(200).body("id", not(hasItem(groupId)));
+        given().auth().oauth2(outsiderTokens.accessToken()).when().get("/api/groups/{id}", groupId)
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
+
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("login", member.login()))
+                .when().post("/api/groups/{id}/members", groupId)
+                .then().statusCode(200)
+                .body("members.size()", equalTo(2))
+                .body("members.login", hasItems(owner.login(), member.login()));
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("login", member.login()))
+                .when().post("/api/groups/{id}/members", groupId)
+                .then().statusCode(409).body("message", equalTo("User is already a member of this group"));
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("login", "missing-user"))
+                .when().post("/api/groups/{id}/members", groupId)
+                .then().statusCode(404).body("message", equalTo("Resource not found"));
+
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
+                .then().statusCode(200).body("members.size()", equalTo(2));
+        given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Renamed"))
+                .when().patch("/api/groups/{id}", groupId)
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
+
+        String eventId = given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Group backup", "startTime", "2026-10-25T18:00:00",
+                        "endTime", "2026-10-25T19:00:00", "groupId", groupId))
+                .when().post("/api/events")
+                .then().statusCode(201)
+                .body("groupId", equalTo(groupId))
+                .body("userId", equalTo(member.id()))
+                .extract().path("id");
+        String todoId = given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Group task", "groupId", groupId))
+                .when().post("/api/todos")
+                .then().statusCode(201)
+                .body("groupId", equalTo(groupId))
+                .body("userId", equalTo(member.id()))
+                .extract().path("id");
+
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/events")
+                .then().statusCode(200).body("id", hasItem(eventId));
+        given().auth().oauth2(ownerTokens.accessToken()).queryParam("groupId", groupId)
+                .when().get("/api/events")
+                .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(eventId));
+        given().auth().oauth2(memberTokens.accessToken()).queryParam("groupId", groupId)
+                .when().get("/api/todos")
+                .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(todoId));
+        given().auth().oauth2(outsiderTokens.accessToken()).queryParam("groupId", groupId)
+                .when().get("/api/events")
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
+        given().auth().oauth2(outsiderTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Not allowed", "startTime", "2026-10-25T18:00:00",
+                        "endTime", "2026-10-25T19:00:00", "groupId", groupId))
+                .when().post("/api/events")
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
+
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("description", "Updated by another member"))
+                .when().patch("/api/events/{id}", eventId)
+                .then().statusCode(200).body("groupId", equalTo(groupId));
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("completed", true))
+                .when().patch("/api/todos/{id}", todoId)
+                .then().statusCode(200).body("groupId", equalTo(groupId)).body("completed", equalTo(true));
+
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Household renamed"))
+                .when().patch("/api/groups/{id}", groupId)
+                .then().statusCode(200).body("name", equalTo("Household renamed"));
+        given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/groups/{id}/members/{userId}",
+                groupId, owner.id())
+                .then().statusCode(400).body("message", equalTo("The group owner cannot be removed"));
+        given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/groups/{id}/members/{userId}",
+                groupId, member.id())
+                .then().statusCode(204);
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
+                .then().statusCode(403);
+
+        given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/events/{id}", eventId)
+                .then().statusCode(204);
+        given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/todos/{id}", todoId)
+                .then().statusCode(204);
+        given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/groups/{id}", groupId)
+                .then().statusCode(204);
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/groups/{id}", groupId)
+                .then().statusCode(404);
+    }
+
     @AfterEach
     void cleanUpCreatedAccounts() throws SQLException {
         try (Connection connection = dataSource.getConnection();

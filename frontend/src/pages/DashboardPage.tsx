@@ -52,8 +52,8 @@ export function DashboardPage({
     try {
       const [upcomingEvents, todos, completed] = await Promise.all([
         api.listEvents(formatLocalDateTime(startOfToday), formatLocalDateTime(nextWeek)),
-        api.listTodos(user.id, false),
-        api.listTodos(user.id, true),
+        api.listAccessibleTodos(false),
+        api.listAccessibleTodos(true),
       ])
       setEvents(upcomingEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)))
       setOpenTodos(todos)
