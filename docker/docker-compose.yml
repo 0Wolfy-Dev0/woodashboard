@@ -31,8 +31,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8081:8081"
+    # Only the frontend Nginx should be reachable from the host.
+    expose:
+      - "8081"
 
   frontend:
     build:

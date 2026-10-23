@@ -7,6 +7,7 @@ import interactionPlugin, { type DateClickArg } from '@fullcalendar/interaction'
 import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, ToastNotice } from '../types'
 
 interface CalendarPageProps {
@@ -27,10 +28,10 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
   const [error, setError] = useState('')
   const rangeRef = useRef<DateRange | null>(null)
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (background = false) => {
     const range = rangeRef.current
     if (!range) return
-    setLoading(true)
+    if (!background) setLoading(true)
     setError('')
     try {
       // FullCalendar's visible range end is exclusive; the API's `to` is inclusive.
@@ -40,15 +41,17 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Could not load calendar events.'
       setError(message)
-      onNotice(message, 'error')
+      if (!background) onNotice(message, 'error')
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
   }, [onNotice])
 
   useEffect(() => {
     void loadEvents()
   }, [loadEvents, refreshVersion])
+
+  useAutoRefresh(() => loadEvents(true))
 
   const calendarEvents = useMemo(() => events.map((event, index) => ({
     id: event.id,

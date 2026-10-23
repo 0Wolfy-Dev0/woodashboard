@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ArrowRight,
   CalendarClock,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, Page, TodoItem, ToastNotice, User } from '../types'
 
 interface DashboardPageProps {
@@ -41,34 +42,34 @@ export function DashboardPage({
   const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
+  const loadDashboard = useCallback(async (background = false) => {
     const now = new Date()
     const startOfToday = new Date(now)
     startOfToday.setHours(0, 0, 0, 0)
     const nextWeek = new Date(now)
     nextWeek.setDate(nextWeek.getDate() + 7)
 
-    Promise.all([
-      api.listEvents(formatLocalDateTime(startOfToday), formatLocalDateTime(nextWeek)),
-      api.listTodos(user.id, false),
-      api.listTodos(user.id, true),
-    ])
-      .then(([upcomingEvents, todos, completed]) => {
-        if (!active) return
-        setEvents(upcomingEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)))
-        setOpenTodos(todos)
-        setCompletedCount(completed.length)
-      })
-      .catch((error: unknown) => {
-        if (active) onNotice(error instanceof Error ? error.message : 'Could not load your dashboard.', 'error')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    try {
+      const [upcomingEvents, todos, completed] = await Promise.all([
+        api.listEvents(formatLocalDateTime(startOfToday), formatLocalDateTime(nextWeek)),
+        api.listTodos(user.id, false),
+        api.listTodos(user.id, true),
+      ])
+      setEvents(upcomingEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)))
+      setOpenTodos(todos)
+      setCompletedCount(completed.length)
+    } catch (error) {
+      if (!background) onNotice(error instanceof Error ? error.message : 'Could not load your dashboard.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [user.id, onNotice])
 
-    return () => { active = false }
-  }, [user.id, refreshVersion, onNotice])
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard, refreshVersion])
+
+  useAutoRefresh(() => loadDashboard(true))
 
   const hour = new Date().getHours()
   const salutation = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
