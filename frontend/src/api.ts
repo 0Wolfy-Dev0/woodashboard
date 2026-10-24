@@ -4,6 +4,8 @@ import type {
   EventPayload,
   Group,
   GroupPayload,
+  TodoFolder,
+  TodoFolderPayload,
   TodoItem,
   TodoPayload,
   TokenResponse,
@@ -150,6 +152,26 @@ export const api = {
 
   getMe: () => request<User>('/me'),
 
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/me/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  listTodoFolders: () => request<TodoFolder[]>('/todo-folders'),
+
+  createTodoFolder: (payload: TodoFolderPayload) =>
+    request<TodoFolder>('/todo-folders', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateTodoFolder: (id: string, payload: Partial<TodoFolderPayload>) =>
+    request<TodoFolder>(`/todo-folders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTodoFolder: (id: string) =>
+    request<void>(`/todo-folders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   listGroups: () => request<Group[]>('/groups'),
 
   createGroup: (payload: GroupPayload) =>
@@ -195,8 +217,8 @@ export const api = {
       `/todos/${encodeURIComponent(userId)}${queryString({ completed })}`,
     ),
 
-  listAccessibleTodos: (completed?: boolean, groupId?: string) =>
-    request<TodoItem[]>(`/todos${queryString({ completed, groupId })}`),
+  listAccessibleTodos: (completed?: boolean, groupId?: string, folderId?: string) =>
+    request<TodoItem[]>(`/todos${queryString({ completed, groupId, folderId })}`),
 
   createTodo: (payload: TodoPayload) =>
     request<TodoItem>('/todos', { method: 'POST', body: JSON.stringify(payload) }),
@@ -213,6 +235,11 @@ export const api = {
   adminListUsers: () => request<User[]>('/admin/users'),
   adminDeleteUser: (id: string) =>
     request<void>(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  adminResetPassword: (id: string, newPassword: string) =>
+    request<void>(`/admin/users/${encodeURIComponent(id)}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newPassword }),
+    }),
   adminListEvents: () => request<EventItem[]>('/admin/events'),
   adminListTodos: () => request<TodoItem[]>('/admin/todos'),
 

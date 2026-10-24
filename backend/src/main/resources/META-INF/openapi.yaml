@@ -9,7 +9,7 @@ info:
     token is stored server side. Refresh tokens are rotated on every use.
 
     **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
-  version: 1.0.0
+  version: 1.2.0
 servers:
   - url: /
     description: Same origin (port 8081 locally; reverse proxy in deployments)
@@ -145,6 +145,127 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api/me/password:
+    patch:
+      tags: [Current user]
+      summary: Change the authenticated user's password
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password updated
+        '400':
+          description: Invalid new password or current password does not match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # -------------------------------------------------------------- TODO FOLDERS
+  /api/todo-folders:
+    get:
+      tags: [Todos]
+      summary: List the authenticated user's todo folders
+      operationId: listTodoFolders
+      responses:
+        '200':
+          description: Personal todo folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoFolderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Todos]
+      summary: Create a todo folder
+      operationId: createTodoFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoFolderCreateRequest'
+      responses:
+        '201':
+          description: Folder created
+          headers:
+            Location:
+              description: URL of the new folder
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoFolderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: A folder with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/todo-folders/{id}:
+    patch:
+      tags: [Todos]
+      summary: Rename a todo folder
+      description: Only the owner can rename their folder.
+      operationId: updateTodoFolder
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoFolderUpdateRequest'
+      responses:
+        '200':
+          description: Updated folder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoFolderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A folder with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+    delete:
+      tags: [Todos]
+      summary: Delete a todo folder
+      description: Only the owner can delete their folder. Its tasks are kept and become unfiled.
+      operationId: deleteTodoFolder
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ----------------------------------------------------------------- TODOS
   /api/todos/{userId}:
     get:
@@ -190,6 +311,12 @@ paths:
         - name: groupId
           in: query
           description: Only return todos shared with this group
+          schema:
+            type: string
+            format: uuid
+        - name: folderId
+          in: query
+          description: Only return todos in one of the authenticated user's folders
           schema:
             type: string
             format: uuid
@@ -288,6 +415,9 @@ paths:
       description: |
         Returns personal events and events shared with groups the authenticated user belongs to.
         Use `from` / `to` to get only the events overlapping a window (handy for a calendar view).
+        Recurring series are expanded into one entry per occurrence inside that window, and every
+        occurrence keeps the series `id` while exposing its own `startTime` / `endTime`. Without
+        `from` and `to`, recurring series are returned once as their base definition.
         Use `groupId` to show only one group's events.
       operationId: listEvents
       parameters:
@@ -610,6 +740,32 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/admin/users/{id}/password:
+    patch:
+      tags: [Administration]
+      summary: Reset a user's password
+      description: Sets a new password and revokes every refresh token of that account.
+      operationId: adminResetPassword
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password reset
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/admin/events:
     get:
       tags: [Administration]
@@ -713,6 +869,10 @@ components:
       type: string
       enum: [USER, ADMIN]
 
+    RecurrenceUnit:
+      type: string
+      enum: [DAYS, WEEKS, MONTHS, YEARS]
+
     # ---- auth
     RegisterRequest:
       type: object
@@ -740,6 +900,29 @@ components:
         password:
           type: string
           format: password
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+
+    ResetPasswordRequest:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
 
     RefreshRequest:
       type: object
@@ -845,6 +1028,43 @@ components:
           type: string
           format: date-time
 
+    # ---- todo folder
+    TodoFolderCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Home
+
+    TodoFolderUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+
+    TodoFolderResponse:
+      type: object
+      required: [id, name, userId, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        userId:
+          type: string
+          format: uuid
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
     # ---- todo
     TodoCreateRequest:
       type: object
@@ -865,6 +1085,11 @@ components:
           format: uuid
           nullable: true
           description: Share this todo with a group the user belongs to
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Personal folder of the authenticated user
 
     TodoUpdateRequest:
       type: object
@@ -878,6 +1103,11 @@ components:
           nullable: true
         completed:
           type: boolean
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set to null to remove the task from its folder
 
     TodoResponse:
       type: object
@@ -895,6 +1125,10 @@ components:
           type: string
           format: uuid
         groupId:
+          type: string
+          format: uuid
+          nullable: true
+        folderId:
           type: string
           format: uuid
           nullable: true
@@ -923,11 +1157,31 @@ components:
           type: string
           format: date-time
           example: '2026-10-12T18:00:00'
+          description: For all-day events the time part is normalized to 00:00:00
         endTime:
           type: string
           format: date-time
-          description: Must be >= startTime
+          description: Must be >= startTime. For all-day events the time part is normalized to 23:59:59
           example: '2026-10-12T19:00:00'
+        allDay:
+          type: boolean
+          default: false
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+          description: Omit or send null for a one-off event
+        recurrenceInterval:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 1
+          description: Number of units between occurrences (for example 3 days)
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last allowed occurrence start; omit for an endless series
         groupId:
           type: string
           format: uuid
@@ -950,10 +1204,25 @@ components:
         endTime:
           type: string
           format: date-time
+        allDay:
+          type: boolean
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+          description: Set to null to turn the series into a one-off event
+        recurrenceInterval:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
 
     EventResponse:
       type: object
-      required: [id, name, userId, startTime, endTime, creationTime, lastModificationTime]
+      required: [id, name, userId, allDay, startTime, endTime, seriesStartTime, seriesEndTime, creationTime, lastModificationTime]
       properties:
         id:
           type: string
@@ -970,12 +1239,35 @@ components:
           type: string
           format: uuid
           nullable: true
+        allDay:
+          type: boolean
         startTime:
           type: string
           format: date-time
+          description: Start of this occurrence
         endTime:
           type: string
           format: date-time
+          description: End of this occurrence
+        seriesStartTime:
+          type: string
+          format: date-time
+          description: Start of the series definition (same as startTime for one-off events)
+        seriesEndTime:
+          type: string
+          format: date-time
+          description: End of the series definition (same as endTime for one-off events)
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+        recurrenceInterval:
+          type: integer
+          nullable: true
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
         creationTime:
           type: string
           format: date-time

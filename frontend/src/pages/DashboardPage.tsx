@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { api } from '../api'
-import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
+import { formatDate, formatEventTime, formatLocalDateTime, relativeDayLabel } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, Page, TodoItem, ToastNotice, User } from '../types'
 
@@ -154,9 +154,9 @@ export function DashboardPage({
           ) : (
             <div className="agenda-list">
               {upcomingEvents.slice(0, 5).map((event, index) => (
-                <button className="agenda-row" key={event.id} onClick={() => onEditEvent(event)}>
+                <button className="agenda-row" key={`${event.id}@${event.startTime}`} onClick={() => onEditEvent(event)}>
                   <span className={`agenda-marker agenda-marker-${index % 3}`} />
-                  <span className="agenda-time-block"><strong>{relativeDayLabel(event.startTime)}</strong><small>{formatTime(event.startTime)}</small></span>
+                  <span className="agenda-time-block"><strong>{relativeDayLabel(event.startTime)}</strong><small>{formatEventTime(event)}</small></span>
                   <span className="agenda-event-copy"><strong>{event.name}</strong><small>{event.description || 'Calendar event'}</small></span>
                   <ArrowRight className="agenda-arrow" size={16} />
                 </button>

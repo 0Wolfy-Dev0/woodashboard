@@ -6,14 +6,14 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin, { type DateClickArg } from '@fullcalendar/interaction'
 import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { api } from '../api'
-import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
+import { allDayEndExclusive, formatDate, formatEventTime, formatLocalDateTime, relativeDayLabel } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, Group, ToastNotice } from '../types'
 
 interface CalendarPageProps {
   groups: Group[]
   refreshVersion: number
-  onCreateEvent: (start: Date) => void
+  onCreateEvent: (start: Date, allDay: boolean) => void
   onEditEvent: (event: EventItem) => void
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
 }
@@ -61,10 +61,11 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
   useAutoRefresh(() => loadEvents(true))
 
   const calendarEvents = useMemo(() => events.map((event, index) => ({
-    id: event.id,
+    id: `${event.id}@${event.startTime}`,
     title: event.name,
-    start: event.startTime,
-    end: event.endTime,
+    start: event.allDay ? event.startTime.slice(0, 10) : event.startTime,
+    end: event.allDay ? allDayEndExclusive(event.endTime) : event.endTime,
+    allDay: event.allDay,
     extendedProps: { event },
     classNames: [`calendar-event-tone-${index % 3}`],
   })), [events])
@@ -75,9 +76,7 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
   }, [events])
 
   function createAtDate(info: DateClickArg) {
-    const start = new Date(info.date)
-    if (info.allDay) start.setHours(9, 0, 0, 0)
-    onCreateEvent(start)
+    onCreateEvent(new Date(info.date), info.allDay)
   }
 
   return (
@@ -96,7 +95,7 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
           <button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>
             {loading ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={15} />} Refresh
           </button>
-          <button className="button button-primary" type="button" onClick={() => onCreateEvent(new Date())}><CalendarPlus size={16} /> Add event</button>
+          <button className="button button-primary" type="button" onClick={() => onCreateEvent(new Date(), false)}><CalendarPlus size={16} /> Add event</button>
         </div>
       </div>
 
@@ -151,7 +150,7 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
                 {upcoming.map((event, index) => (
                   <button className="upcoming-event" key={event.id} onClick={() => onEditEvent(event)}>
                     <span className={`upcoming-event-bar upcoming-event-bar-${index % 3}`} />
-                    <span className="upcoming-event-main"><strong>{event.name}</strong><small>{relativeDayLabel(event.startTime)} · {formatTime(event.startTime)}</small></span>
+                    <span className="upcoming-event-main"><strong>{event.name}</strong><small>{relativeDayLabel(event.startTime)} · {formatEventTime(event)}{event.recurrenceUnit ? ' · Repeats' : ''}</small></span>
                     {event.description && <span className="upcoming-event-description">{event.description}</span>}
                   </button>
                 ))}

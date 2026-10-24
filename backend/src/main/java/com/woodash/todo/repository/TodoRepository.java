@@ -18,14 +18,14 @@ public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
         return list("user.id = ?1 and completed = ?2 order by creationTime", userId, completed);
     }
 
-    public List<Todo> listAccessible(UUID userId, Boolean completed, UUID groupId) {
+    public List<Todo> listAccessible(UUID userId, Boolean completed, UUID groupId, UUID folderId) {
         StringBuilder query = new StringBuilder(
                 "select distinct t from Todo t left join t.sharedGroup g left join g.members gm"
                         + " where ((t.sharedGroup is null and t.user.id = ?1)"
                         + " or (t.sharedGroup is not null and gm.user.id = ?1))");
         List<Object> parameters = new ArrayList<>();
         parameters.add(userId);
-        appendFilters(query, parameters, completed, groupId);
+        appendFilters(query, parameters, completed, groupId, folderId);
         query.append(" order by t.completed, t.creationTime");
         return list(query.toString(), parameters.toArray());
     }
@@ -34,7 +34,7 @@ public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
         StringBuilder query = new StringBuilder("select t from Todo t where t.sharedGroup.id = ?1");
         List<Object> parameters = new ArrayList<>();
         parameters.add(groupId);
-        appendFilters(query, parameters, completed, null);
+        appendFilters(query, parameters, completed, null, null);
         query.append(" order by t.completed, t.creationTime");
         return list(query.toString(), parameters.toArray());
     }
@@ -43,7 +43,8 @@ public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
         return list("order by completed, creationTime");
     }
 
-    private void appendFilters(StringBuilder query, List<Object> parameters, Boolean completed, UUID groupId) {
+    private void appendFilters(StringBuilder query, List<Object> parameters, Boolean completed, UUID groupId,
+            UUID folderId) {
         if (completed != null) {
             query.append(" and t.completed = ?").append(parameters.size() + 1);
             parameters.add(completed);
@@ -51,6 +52,10 @@ public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
         if (groupId != null) {
             query.append(" and t.sharedGroup.id = ?").append(parameters.size() + 1);
             parameters.add(groupId);
+        }
+        if (folderId != null) {
+            query.append(" and t.folder.id = ?").append(parameters.size() + 1);
+            parameters.add(folderId);
         }
     }
 }

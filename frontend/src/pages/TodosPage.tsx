@@ -3,6 +3,8 @@ import {
   Check,
   CheckCheck,
   Circle,
+  Folder,
+  FolderPlus,
   ListFilter,
   LoaderCircle,
   Plus,
@@ -11,23 +13,28 @@ import {
   SquarePen,
 } from 'lucide-react'
 import { api } from '../api'
+import { TodoFoldersModal } from '../components/TodoFoldersModal'
 import { formatDate } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import type { Group, TodoItem, ToastNotice } from '../types'
+import type { Group, TodoFolder, TodoItem, ToastNotice } from '../types'
 
 type TodoFilter = 'all' | 'open' | 'completed'
 
 interface TodosPageProps {
   groups: Group[]
+  folders: TodoFolder[]
   refreshVersion: number
   onCreateTodo: () => void
   onEditTodo: (todo: TodoItem) => void
+  onFoldersChanged: () => Promise<void>
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
 }
 
-export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, onNotice }: TodosPageProps) {
+export function TodosPage({ groups, folders, refreshVersion, onCreateTodo, onEditTodo, onFoldersChanged, onNotice }: TodosPageProps) {
   const [filter, setFilter] = useState<TodoFilter>('open')
   const [groupId, setGroupId] = useState('')
+  const [folderFilter, setFolderFilter] = useState('')
+  const [foldersOpen, setFoldersOpen] = useState(false)
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -36,16 +43,21 @@ export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, on
   const loadTodos = useCallback(async (background = false) => {
     if (!loadedRef.current) setLoading(true)
     const completed = filter === 'all' ? undefined : filter === 'completed'
+    const isSelectedFolder = folderFilter !== '' && folderFilter !== 'unfiled'
+      && folders.some((folder) => folder.id === folderFilter)
+    const folderId = isSelectedFolder ? folderFilter : undefined
     try {
-      const result = await api.listAccessibleTodos(completed, groupId || undefined)
-      setTodos(result)
+      const result = await api.listAccessibleTodos(completed, groupId || undefined, folderId)
+      setTodos(folderFilter === 'unfiled'
+        ? result.filter((todo) => !todo.folderId || !folders.some((folder) => folder.id === todo.folderId))
+        : result)
       loadedRef.current = true
     } catch (error) {
       if (!background) onNotice(error instanceof Error ? error.message : 'Could not load tasks.', 'error')
     } finally {
       setLoading(false)
     }
-  }, [filter, groupId, onNotice])
+  }, [filter, groupId, folderFilter, folders, onNotice])
 
   useEffect(() => {
     void loadTodos()
@@ -55,7 +67,15 @@ export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, on
     if (groupId && !groups.some((group) => group.id === groupId)) setGroupId('')
   }, [groupId, groups])
 
+  useEffect(() => {
+    if (folderFilter && folderFilter !== 'unfiled' && !folders.some((folder) => folder.id === folderFilter)) {
+      setFolderFilter('')
+    }
+  }, [folderFilter, folders])
+
   useAutoRefresh(() => loadTodos(true))
+
+  const folderNames = useMemo(() => new Map(folders.map((folder) => [folder.id, folder.name])), [folders])
 
   const filteredTodos = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
@@ -91,6 +111,27 @@ export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, on
       </div>
 
       <section className="surface-card todo-board">
+        <div className="folder-strip" aria-label="Filter tasks by folder">
+          <button className={`folder-chip${folderFilter === '' ? ' active' : ''}`} onClick={() => setFolderFilter('')}>
+            <Folder size={13} /> All folders
+          </button>
+          <button className={`folder-chip${folderFilter === 'unfiled' ? ' active' : ''}`} onClick={() => setFolderFilter('unfiled')}>
+            No folder
+          </button>
+          {folders.map((folder) => (
+            <button
+              className={`folder-chip${folderFilter === folder.id ? ' active' : ''}`}
+              key={folder.id}
+              onClick={() => setFolderFilter(folder.id)}
+            >
+              <Folder size={13} /> {folder.name}
+            </button>
+          ))}
+          <button className="folder-chip folder-chip-manage" onClick={() => setFoldersOpen(true)}>
+            <FolderPlus size={13} /> Manage folders
+          </button>
+        </div>
+
         <div className="todo-toolbar">
           <div className="filter-tabs" role="tablist" aria-label="Filter tasks">
             {([
@@ -135,6 +176,9 @@ export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, on
                 <button className="todo-row-content" onClick={() => onEditTodo(todo)}>
                   <strong>{todo.name}</strong>
                   {todo.description && <span>{todo.description}</span>}
+                  {todo.folderId && folderNames.get(todo.folderId) && (
+                    <span className="todo-row-folder"><Folder size={11} /> {folderNames.get(todo.folderId)}</span>
+                  )}
                 </button>
                 <span className="todo-created">Added {formatDate(todo.creationTime)}</span>
                 <button className="icon-button todo-edit" onClick={() => onEditTodo(todo)} aria-label={`Edit ${todo.name}`}><SquarePen size={17} /></button>
@@ -145,6 +189,15 @@ export function TodosPage({ groups, refreshVersion, onCreateTodo, onEditTodo, on
       </section>
 
       <div className="todo-encouragement"><span className="encouragement-icon"><Sparkles size={16} /></span><span>Progress is progress, no matter how small.</span></div>
+
+      {foldersOpen && (
+        <TodoFoldersModal
+          folders={folders}
+          onClose={() => setFoldersOpen(false)}
+          onChanged={onFoldersChanged}
+          onNotice={onNotice}
+        />
+      )}
     </div>
   )
 }

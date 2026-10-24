@@ -1,12 +1,20 @@
 import { useState, type FormEvent } from 'react'
-import { CalendarPlus, LoaderCircle, Trash2 } from 'lucide-react'
+import { CalendarPlus, LoaderCircle, Repeat2, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
-import { fromDateTimeInput, toDateTimeInput } from '../format'
-import type { EventItem, EventPayload, Group } from '../types'
+import {
+  formatLocalDate,
+  formatRecurrence,
+  fromDateInput,
+  fromDateTimeInput,
+  toDateInput,
+  toDateTimeInput,
+} from '../format'
+import type { EventItem, EventPayload, Group, RecurrenceUnit } from '../types'
 
 interface EventFormModalProps {
   event?: EventItem
   initialStart?: Date
+  initialAllDay?: boolean
   groups: Group[]
   onClose: () => void
   onSave: (payload: EventPayload) => Promise<void>
@@ -29,22 +37,76 @@ function defaultTimes(initialStart?: Date): { start: string; end: string } {
   return { start: toInput(start), end: toInput(end) }
 }
 
-export function EventFormModal({ event, initialStart, groups, onClose, onSave, onDelete }: EventFormModalProps) {
+const repeatOptions: Array<{ value: RecurrenceUnit; label: string; unit: string }> = [
+  { value: 'DAYS', label: 'Daily', unit: 'days' },
+  { value: 'WEEKS', label: 'Weekly', unit: 'weeks' },
+  { value: 'MONTHS', label: 'Monthly', unit: 'months' },
+  { value: 'YEARS', label: 'Yearly', unit: 'years' },
+]
+
+export function EventFormModal({
+  event,
+  initialStart,
+  initialAllDay = false,
+  groups,
+  onClose,
+  onSave,
+  onDelete,
+}: EventFormModalProps) {
   const defaults = defaultTimes(initialStart)
+  const startsAllDay = event?.allDay ?? initialAllDay
+  const baseStart = event ? event.seriesStartTime ?? event.startTime : undefined
+  const baseEnd = event ? event.seriesEndTime ?? event.endTime : undefined
+  const initialStartValue = baseStart
+    ? (startsAllDay ? toDateInput(baseStart) : toDateTimeInput(baseStart))
+    : (startsAllDay ? formatLocalDate(initialStart ?? new Date()) : defaults.start)
+  const initialEndValue = baseEnd
+    ? (startsAllDay ? toDateInput(baseEnd) : toDateTimeInput(baseEnd))
+    : (startsAllDay ? initialStartValue : defaults.end)
+
   const [name, setName] = useState(event?.name ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
-  const [startTime, setStartTime] = useState(event ? toDateTimeInput(event.startTime) : defaults.start)
-  const [endTime, setEndTime] = useState(event ? toDateTimeInput(event.endTime) : defaults.end)
+  const [allDay, setAllDay] = useState(startsAllDay)
+  const [startValue, setStartValue] = useState(initialStartValue)
+  const [endValue, setEndValue] = useState(initialEndValue)
+  const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit | ''>(event?.recurrenceUnit ?? '')
+  const [recurrenceInterval, setRecurrenceInterval] = useState(String(event?.recurrenceInterval ?? 1))
+  const [recurrenceEnd, setRecurrenceEnd] = useState(event?.recurrenceEnd ? toDateInput(event.recurrenceEnd) : '')
   const [groupId, setGroupId] = useState(event?.groupId ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  function toggleAllDay(checked: boolean) {
+    if (checked) {
+      setStartValue(startValue.slice(0, 10))
+      setEndValue(endValue.slice(0, 10))
+    } else {
+      const startDate = startValue.slice(0, 10)
+      const endDate = endValue.slice(0, 10)
+      setStartValue(`${startDate}T09:00`)
+      setEndValue(endDate === startDate ? `${startDate}T10:00` : `${endDate}T17:00`)
+    }
+    setAllDay(checked)
+  }
+
+  async function submit(submitEvent: FormEvent<HTMLFormElement>) {
+    submitEvent.preventDefault()
     setError('')
+
+    const startTime = allDay ? fromDateInput(startValue) : fromDateTimeInput(startValue)
+    const endTime = allDay ? `${endValue}T23:59:59` : fromDateTimeInput(endValue)
     if (new Date(endTime).getTime() < new Date(startTime).getTime()) {
       setError('The end time must be after the start time.')
+      return
+    }
+    if (recurrenceUnit && recurrenceEnd && recurrenceEnd < startValue.slice(0, 10)) {
+      setError('The repeating series cannot end before it starts.')
+      return
+    }
+    const interval = Number(recurrenceInterval)
+    if (recurrenceUnit && (!Number.isInteger(interval) || interval < 1 || interval > 1000)) {
+      setError('Choose a repeat interval between 1 and 1000.')
       return
     }
 
@@ -53,8 +115,12 @@ export function EventFormModal({ event, initialStart, groups, onClose, onSave, o
       await onSave({
         name: name.trim(),
         description: description.trim() || null,
-        startTime: fromDateTimeInput(startTime),
-        endTime: fromDateTimeInput(endTime),
+        startTime,
+        endTime,
+        allDay,
+        recurrenceUnit: recurrenceUnit || null,
+        recurrenceInterval: recurrenceUnit ? interval : null,
+        recurrenceEnd: recurrenceUnit && recurrenceEnd ? `${recurrenceEnd}T23:59:59` : null,
         groupId: groupId || null,
       })
     } catch (cause) {
@@ -82,6 +148,7 @@ export function EventFormModal({ event, initialStart, groups, onClose, onSave, o
       title={event ? 'Edit event' : 'Plan something'}
       eyebrow={event ? 'Your calendar' : 'New calendar event'}
       onClose={onClose}
+      wide
       footer={
         <>
           {event && onDelete && (
@@ -110,16 +177,86 @@ export function EventFormModal({ event, initialStart, groups, onClose, onSave, o
           <span>Description <small>Optional</small></span>
           <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add a little more detail" />
         </label>
+
+        <label className="checkbox-field">
+          <input type="checkbox" checked={allDay} onChange={(e) => toggleAllDay(e.target.checked)} />
+          <span className="checkbox-custom"><CalendarPlus size={13} /></span>
+          <span>All-day event <small>No start or end time</small></span>
+        </label>
+
         <div className="form-grid-two">
-          <label className="field">
-            <span>Starts</span>
-            <input type="datetime-local" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Ends</span>
-            <input type="datetime-local" required value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-          </label>
+          {allDay ? (
+            <>
+              <label className="field">
+                <span>Starts</span>
+                <input type="date" required value={startValue} onChange={(e) => setStartValue(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Ends</span>
+                <input type="date" required value={endValue} onChange={(e) => setEndValue(e.target.value)} />
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="field">
+                <span>Starts</span>
+                <input type="datetime-local" required value={startValue} onChange={(e) => setStartValue(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Ends</span>
+                <input type="datetime-local" required value={endValue} onChange={(e) => setEndValue(e.target.value)} />
+              </label>
+            </>
+          )}
         </div>
+
+        <div className="recurrence-panel">
+          <div className="recurrence-heading">
+            <span className="recurrence-icon"><Repeat2 size={16} /></span>
+            <div>
+              <strong>Repeat this event</strong>
+              <small>{formatRecurrence(recurrenceUnit || null, recurrenceUnit ? Number(recurrenceInterval) || 1 : null)}</small>
+            </div>
+          </div>
+          <label className="field">
+            <span>Frequency</span>
+            <select value={recurrenceUnit} onChange={(e) => setRecurrenceUnit(e.target.value as RecurrenceUnit | '')}>
+              <option value="">Does not repeat</option>
+              {repeatOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          {recurrenceUnit && (
+            <div className="form-grid-two">
+              <label className="field">
+                <span>Every</span>
+                <div className="repeat-interval-row">
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    required
+                    value={recurrenceInterval}
+                    onChange={(e) => setRecurrenceInterval(e.target.value)}
+                    aria-label="Repeat interval"
+                  />
+                  <span>{repeatOptions.find((option) => option.value === recurrenceUnit)?.unit}</span>
+                </div>
+              </label>
+              <label className="field">
+                <span>Series ends <small>Optional</small></span>
+                <input type="date" value={recurrenceEnd} onChange={(e) => setRecurrenceEnd(e.target.value)} />
+              </label>
+            </div>
+          )}
+          {event?.recurrenceUnit && (
+            <p className="field-hint recurrence-hint">
+              This is one occurrence of a repeating event. Saving changes updates the whole series.
+            </p>
+          )}
+        </div>
+
         {event ? (
           <p className="field-hint">
             {event.groupId

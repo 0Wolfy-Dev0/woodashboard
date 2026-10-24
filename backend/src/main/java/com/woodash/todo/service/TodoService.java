@@ -8,6 +8,7 @@ import com.woodash.common.ErrorCode;
 import com.woodash.group.entity.Group;
 import com.woodash.group.service.GroupAccessService;
 import com.woodash.todo.entity.Todo;
+import com.woodash.todo.entity.TodoFolder;
 import com.woodash.todo.repository.TodoRepository;
 import com.woodash.todo.rest.dto.TodoCreateRequest;
 import com.woodash.todo.rest.dto.TodoResponse;
@@ -31,11 +32,18 @@ public class TodoService {
     @Inject
     GroupAccessService groupAccessService;
 
-    public List<TodoResponse> listAccessible(UUID userId, Boolean completed, UUID groupId, CurrentUser currentUser) {
+    @Inject
+    TodoFolderService todoFolderService;
+
+    public List<TodoResponse> listAccessible(UUID userId, Boolean completed, UUID groupId, UUID folderId,
+            CurrentUser currentUser) {
         if (groupId != null) {
             groupAccessService.requireVisibleGroup(groupId, currentUser);
         }
-        return todoRepository.listAccessible(userId, completed, groupId).stream()
+        if (folderId != null) {
+            todoFolderService.requireOwnedFolder(folderId, currentUser.getUserId());
+        }
+        return todoRepository.listAccessible(userId, completed, groupId, folderId).stream()
                 .map(TodoResponse::from)
                 .toList();
     }
@@ -57,6 +65,8 @@ public class TodoService {
         User user = userRepository.findByIdOptional(userId).orElseThrow(ErrorCode.NOT_FOUND::getException);
         Group group = request.getGroupId() == null ? null
                 : groupAccessService.requireVisibleGroup(request.getGroupId(), currentUser);
+        TodoFolder folder = request.getFolderId() == null ? null
+                : todoFolderService.requireOwnedFolder(request.getFolderId(), userId);
 
         Todo todo = new Todo();
         todo.setName(request.getName());
@@ -64,6 +74,7 @@ public class TodoService {
         todo.setCompleted(Boolean.TRUE.equals(request.getCompleted()));
         todo.setUser(user);
         todo.setSharedGroup(group);
+        todo.setFolder(folder);
         todoRepository.persistAndFlush(todo);
         return TodoResponse.from(todo);
     }
@@ -88,6 +99,13 @@ public class TodoService {
                 ErrorCode.INVALID_REQUEST_BODY.throwException();
             }
             todo.setCompleted(request.getCompleted());
+        }
+        if (request.hasFolderId()) {
+            if (!currentUser.isAdmin() && !currentUser.getUserId().equals(todo.getUser().getId())) {
+                ErrorCode.FORBIDDEN.throwException();
+            }
+            todo.setFolder(request.getFolderId() == null ? null
+                    : todoFolderService.requireOwnedFolder(request.getFolderId(), todo.getUser().getId()));
         }
 
         todoRepository.flush();

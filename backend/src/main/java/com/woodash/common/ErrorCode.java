@@ -18,7 +18,9 @@ public enum ErrorCode {
     FORBIDDEN(Status.FORBIDDEN, "You are not allowed to access this resource"),
     NOT_FOUND(Status.NOT_FOUND, "Resource not found"),
     GROUP_MEMBER_ALREADY_EXISTS(Status.CONFLICT, "User is already a member of this group"),
-    CANNOT_REMOVE_GROUP_OWNER(Status.BAD_REQUEST, "The group owner cannot be removed");
+    CANNOT_REMOVE_GROUP_OWNER(Status.BAD_REQUEST, "The group owner cannot be removed"),
+    TODO_FOLDER_ALREADY_EXISTS(Status.CONFLICT, "A todo folder with this name already exists"),
+    INVALID_CURRENT_PASSWORD(Status.BAD_REQUEST, "Current password is incorrect");
 
     private final Response.Status errorCode;
 

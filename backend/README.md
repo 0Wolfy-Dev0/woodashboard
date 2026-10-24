@@ -56,6 +56,11 @@ Users can create groups, add members by login, and share events/todos with a gro
 can edit or delete shared items; only the group owner or an admin can manage the group and its
 members. Group endpoints are documented in the root `README.md` and in Swagger.
 
+Todos can also be organized into private folders, events can be all-day or repeat on a simple
+schedule, and every account can change its password from the profile page. Admins can reset another
+user's password from the administration page. The root `README.md` and Swagger describe the request
+fields.
+
 The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml`. Start it first if
 needed, then run:
 

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { BadgeCheck, CalendarDays, Copy, KeyRound, LogOut, ShieldCheck, UserRound } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { BadgeCheck, CalendarDays, Copy, KeyRound, LoaderCircle, LockKeyhole, LogOut, ShieldCheck, UserRound } from 'lucide-react'
+import { api } from '../api'
 import { formatLongDate } from '../format'
 import type { Session, ToastNotice, User } from '../types'
 
@@ -12,6 +13,36 @@ interface ProfilePageProps {
 
 export function ProfilePage({ user, session, onSignOut, onNotice }: ProfilePageProps) {
   const [signingOut, setSigningOut] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPasswordError('')
+    if (newPassword.length < 8) {
+      setPasswordError('The new password must be at least 8 characters long.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('The new passwords do not match.')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      await api.changePassword(currentPassword, newPassword)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      onNotice('Password updated.')
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Could not update your password.')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
 
   async function copyId() {
     try {
@@ -61,6 +92,31 @@ export function ProfilePage({ user, session, onSignOut, onNotice }: ProfilePageP
             <div className="profile-detail-row"><span>Last updated</span><strong>{formatLongDate(user.lastModificationTime)}</strong></div>
           </section>
 
+          <section className="surface-card profile-password-card">
+            <div className="section-heading"><div><span className="eyebrow">SECURITY</span><h2>Change password</h2></div><span className="aside-heading-icon"><LockKeyhole size={17} /></span></div>
+            <form className="profile-password-form" onSubmit={changePassword}>
+              <label className="field">
+                <span>Current password</span>
+                <input type="password" required autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Your current password" />
+              </label>
+              <div className="form-grid-two">
+                <label className="field">
+                  <span>New password</span>
+                  <input type="password" required minLength={8} maxLength={128} autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
+                </label>
+                <label className="field">
+                  <span>Confirm new password</span>
+                  <input type="password" required minLength={8} maxLength={128} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat the new password" />
+                </label>
+              </div>
+              {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
+              <button className="button button-primary button-small profile-password-submit" type="submit" disabled={changingPassword}>
+                {changingPassword ? <LoaderCircle className="spin" size={14} /> : <KeyRound size={14} />}
+                {changingPassword ? 'Updating…' : 'Update password'}
+              </button>
+            </form>
+          </section>
+
           <section className="surface-card profile-session-card">
             <div className="section-heading"><div><span className="eyebrow">SECURITY</span><h2>Your session</h2></div><span className="aside-heading-icon"><KeyRound size={17} /></span></div>
             <div className="session-status"><span className="session-status-dot" /><span><strong>Signed in</strong><small>Access tokens renew automatically when needed.</small></span></div>
@@ -68,7 +124,7 @@ export function ProfilePage({ user, session, onSignOut, onNotice }: ProfilePageP
             <button className="button button-danger-quiet profile-signout" onClick={() => void signOut()} disabled={signingOut}><LogOut size={16} />{signingOut ? 'Signing out…' : 'Sign out of this device'}</button>
           </section>
 
-          <div className="profile-footnote"><CalendarDays size={15} /> Profile details are read-only for now.</div>
+          <div className="profile-footnote"><CalendarDays size={15} /> Your login and join date are read-only; you can change your password above.</div>
         </div>
       </div>
     </div>

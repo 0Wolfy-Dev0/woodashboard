@@ -35,8 +35,8 @@ public class TodoResource {
 
     @GET
     public List<TodoResponse> list(@QueryParam("completed") Boolean completed,
-            @QueryParam("groupId") UUID groupId) {
-        return todoService.listAccessible(currentUser.getUserId(), completed, groupId, currentUser);
+            @QueryParam("groupId") UUID groupId, @QueryParam("folderId") UUID folderId) {
+        return todoService.listAccessible(currentUser.getUserId(), completed, groupId, folderId, currentUser);
     }
 
     @GET

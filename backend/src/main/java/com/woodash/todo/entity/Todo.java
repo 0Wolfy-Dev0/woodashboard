@@ -32,6 +32,10 @@ public class Todo extends BaseEntity {
     @JoinColumn(name = "group_id")
     private Group sharedGroup;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_id")
+    private TodoFolder folder;
+
     @Column(nullable = false)
     private boolean completed = false;
 }

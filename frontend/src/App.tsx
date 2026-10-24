@@ -24,11 +24,11 @@ import { DashboardPage } from './pages/DashboardPage'
 import { GroupsPage } from './pages/GroupsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { TodosPage } from './pages/TodosPage'
-import type { EventItem, EventPayload, Group, Page, Session, TodoItem, TodoPayload, ToastNotice, User } from './types'
+import type { EventItem, EventPayload, Group, Page, Session, TodoFolder, TodoItem, TodoPayload, ToastNotice, User } from './types'
 
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
 
-type EventDialog = { event?: EventItem; start?: Date } | null
+type EventDialog = { event?: EventItem; start?: Date; allDay?: boolean } | null
 type TodoDialog = { todo?: TodoItem } | null
 
 export default function App() {
@@ -40,6 +40,7 @@ export default function App() {
   const [eventDialog, setEventDialog] = useState<EventDialog>(null)
   const [todoDialog, setTodoDialog] = useState<TodoDialog>(null)
   const [groups, setGroups] = useState<Group[]>([])
+  const [folders, setFolders] = useState<TodoFolder[]>([])
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [notices, setNotices] = useState<ToastNotice[]>([])
 
@@ -61,11 +62,28 @@ export default function App() {
     }
   }, [user?.id, notify])
 
+  const loadFolders = useCallback(async (silent = false) => {
+    if (!user) {
+      setFolders([])
+      return
+    }
+    try {
+      setFolders(await api.listTodoFolders())
+    } catch (error) {
+      if (!silent) notify(error instanceof Error ? error.message : 'Could not load your todo folders.', 'error')
+    }
+  }, [user?.id, notify])
+
   useEffect(() => {
     void loadGroups()
   }, [loadGroups])
 
+  useEffect(() => {
+    void loadFolders()
+  }, [loadFolders])
+
   useAutoRefresh(() => loadGroups(true))
+  useAutoRefresh(() => loadFolders(true))
 
   useEffect(() => {
     const onSessionExpired = () => {
@@ -129,6 +147,10 @@ export default function App() {
         description: payload.description,
         startTime: payload.startTime,
         endTime: payload.endTime,
+        allDay: payload.allDay,
+        recurrenceUnit: payload.recurrenceUnit,
+        recurrenceInterval: payload.recurrenceInterval,
+        recurrenceEnd: payload.recurrenceEnd,
       })
       notify('Event updated.')
     } else {
@@ -149,10 +171,12 @@ export default function App() {
 
   async function saveTodo(payload: TodoPayload) {
     if (todoDialog?.todo) {
+      const updatingOwnTodo = todoDialog.todo.userId === user?.id
       await api.updateTodo(todoDialog.todo.id, {
         name: payload.name,
         description: payload.description,
         completed: payload.completed,
+        ...(updatingOwnTodo ? { folderId: payload.folderId ?? null } : {}),
       })
       notify('Task updated.')
     } else {
@@ -263,15 +287,15 @@ export default function App() {
         </header>
 
         {displayPage === 'home' && <DashboardPage user={user} refreshVersion={refreshVersion} onNavigate={navigate} onCreateEvent={() => setEventDialog({ start: new Date() })} onEditEvent={(event) => setEventDialog({ event })} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onNotice={notify} />}
-        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} onCreateEvent={(start) => setEventDialog({ start })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
-        {displayPage === 'todos' && <TodosPage groups={groups} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onNotice={notify} />}
+        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} onCreateEvent={(start, allDay) => setEventDialog({ start, allDay })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
+        {displayPage === 'todos' && <TodosPage groups={groups} folders={folders} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onFoldersChanged={async () => { await loadFolders(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
         {displayPage === 'groups' && <GroupsPage groups={groups} currentUser={user} onGroupsChanged={async () => { await loadGroups(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
         {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onNotice={notify} />}
         {displayPage === 'admin' && <AdminPage currentUser={user} refreshVersion={refreshVersion} onDeleteUser={deleteUser} onNotice={notify} />}
       </main>
 
-      {eventDialog && <EventFormModal event={eventDialog.event} initialStart={eventDialog.start} groups={groups} onClose={() => setEventDialog(null)} onSave={saveEvent} onDelete={eventDialog.event ? deleteEvent : undefined} />}
-      {todoDialog && <TodoFormModal todo={todoDialog.todo} groups={groups} onClose={() => setTodoDialog(null)} onSave={saveTodo} onDelete={todoDialog.todo ? deleteTodo : undefined} />}
+      {eventDialog && <EventFormModal event={eventDialog.event} initialStart={eventDialog.start} initialAllDay={eventDialog.allDay} groups={groups} onClose={() => setEventDialog(null)} onSave={saveEvent} onDelete={eventDialog.event ? deleteEvent : undefined} />}
+      {todoDialog && <TodoFormModal todo={todoDialog.todo} groups={groups} folders={folders} currentUserId={user.id} onClose={() => setTodoDialog(null)} onSave={saveTodo} onDelete={todoDialog.todo ? deleteTodo : undefined} />}
       <Toasts notices={notices} onDismiss={(id) => setNotices((items) => items.filter((item) => item.id !== id))} />
     </div>
   )

@@ -14,4 +14,5 @@ public class TodoCreateRequest {
     private String description;
     private Boolean completed;
     private UUID groupId;
+    private UUID folderId;
 }

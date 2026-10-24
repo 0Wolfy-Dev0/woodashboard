@@ -1,31 +1,41 @@
 import { useState, type FormEvent } from 'react'
-import { Check, LoaderCircle, Trash2 } from 'lucide-react'
+import { Check, Folder, LoaderCircle, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
-import type { Group, TodoItem, TodoPayload } from '../types'
+import type { Group, TodoFolder, TodoItem, TodoPayload } from '../types'
 
 interface TodoFormModalProps {
   todo?: TodoItem
   groups: Group[]
+  folders: TodoFolder[]
+  currentUserId: string
   onClose: () => void
   onSave: (payload: TodoPayload) => Promise<void>
   onDelete?: () => Promise<void>
 }
 
-export function TodoFormModal({ todo, groups, onClose, onSave, onDelete }: TodoFormModalProps) {
+export function TodoFormModal({ todo, groups, folders, currentUserId, onClose, onSave, onDelete }: TodoFormModalProps) {
   const [name, setName] = useState(todo?.name ?? '')
   const [description, setDescription] = useState(todo?.description ?? '')
   const [completed, setCompleted] = useState(todo?.completed ?? false)
   const [groupId, setGroupId] = useState(todo?.groupId ?? '')
+  const [folderId, setFolderId] = useState(todo?.folderId ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const canChooseFolder = !todo || todo.userId === currentUserId
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setSaving(true)
     try {
-      await onSave({ name: name.trim(), description: description.trim() || null, completed, groupId: groupId || null })
+      await onSave({
+        name: name.trim(),
+        description: description.trim() || null,
+        completed,
+        groupId: groupId || null,
+        folderId: folderId || null,
+      })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save this task.')
     } finally {
@@ -84,6 +94,17 @@ export function TodoFormModal({ todo, groups, onClose, onSave, onDelete }: TodoF
           <span className="checkbox-custom"><Check size={13} /></span>
           <span>Mark as completed</span>
         </label>
+        {canChooseFolder ? (
+          <label className="field">
+            <span>Folder <small>Optional</small></span>
+            <select value={folderId} onChange={(e) => setFolderId(e.target.value)}>
+              <option value="">No folder</option>
+              {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+            </select>
+          </label>
+        ) : (
+          <p className="field-hint todo-owner-folder-hint"><Folder size={13} /> The folder is managed by the task owner.</p>
+        )}
         {todo ? (
           <p className="field-hint">
             {todo.groupId
