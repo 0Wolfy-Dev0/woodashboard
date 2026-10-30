@@ -25,15 +25,17 @@ public class UserService {
     @Inject
     RefreshTokenRepository refreshTokenRepository;
 
+    @Transactional
     public boolean loginExist(String login) {
         Optional<User> user = userRepository.findByLogin(login);
         return user.isPresent();
     }
 
-    public User createUser(String login, String password) {
-        return userRepository.createUser(login, password);
+    public User createUser(String login, String passwordHash) {
+        return userRepository.createUser(login, passwordHash);
     }
 
+    @Transactional
     public User getUserByLogin(String login) {
         return userRepository.findByLogin(login).orElse(null);
     }
@@ -68,6 +70,9 @@ public class UserService {
 
         user.setPasswordHash(BcryptUtil.bcryptHash(request.getNewPassword()));
         userRepository.flush();
+        // A password change invalidates every existing refresh token, including tokens
+        // issued to other devices before the change.
+        refreshTokenRepository.revokeAllForUser(userId);
     }
 
     @Transactional

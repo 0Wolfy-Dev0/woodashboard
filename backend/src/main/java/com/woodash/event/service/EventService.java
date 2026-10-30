@@ -29,7 +29,11 @@ import jakarta.transaction.Transactional;
 public class EventService {
 
     private static final int MAX_OCCURRENCES_PER_EVENT = 10000;
+    private static final int MAX_TOTAL_OCCURRENCES = 10000;
     private static final int MAX_RECURRENCE_INTERVAL = 1000;
+    private static final int MAX_DESCRIPTION_LENGTH = 10000;
+    private static final long DEFAULT_WINDOW_DAYS = 366;
+    private static final long MAX_WINDOW_DAYS = 366 * 2;
     private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
 
     @Inject
@@ -44,30 +48,41 @@ public class EventService {
     public List<EventResponse> listAccessible(UUID userId, UUID groupId, LocalDateTime from, LocalDateTime to,
             CurrentUser currentUser) {
         validateWindow(from, to);
-        List<Event> events;
         if (groupId != null) {
             groupAccessService.requireVisibleGroup(groupId, currentUser);
-            events = eventRepository.listByGroup(groupId, null, null);
-        } else {
-            events = eventRepository.listAccessible(userId, null, null);
         }
 
         // Without a window we return the series definitions themselves. Expanding an endless
         // recurring series here would never terminate.
         if (from == null && to == null) {
+            List<Event> events = groupId != null ? eventRepository.listByGroup(groupId, null, null)
+                    : eventRepository.listAccessible(userId, null, null);
             return events.stream().map(EventResponse::from).toList();
         }
 
-        LocalDateTime windowStart = from != null ? from : to.minusYears(10);
-        LocalDateTime windowEnd = to != null ? to : from.plusYears(10);
+        // A single missing bound defaults to a one-year window, and both bounds together may
+        // span at most two years. This keeps one request from expanding decades of occurrences.
+        LocalDateTime windowStart = from != null ? from : to.minusDays(DEFAULT_WINDOW_DAYS);
+        LocalDateTime windowEnd = to != null ? to : from.plusDays(DEFAULT_WINDOW_DAYS);
+        validateWindowSpan(windowStart, windowEnd);
+
+        List<Event> events = groupId != null ? eventRepository.listByGroup(groupId, windowStart, windowEnd)
+                : eventRepository.listAccessible(userId, windowStart, windowEnd);
         List<EventOccurrence> occurrences = new ArrayList<>();
+        int totalOccurrences = 0;
         for (Event event : events) {
             if (event.getRecurrenceUnit() == null) {
                 if (overlaps(event.getStartTime(), event.getEndTime(), windowStart, windowEnd)) {
                     occurrences.add(new EventOccurrence(event, event.getStartTime(), event.getEndTime()));
+                    totalOccurrences++;
                 }
             } else {
-                occurrences.addAll(expand(event, windowStart, windowEnd));
+                List<EventOccurrence> expanded = expand(event, windowStart, windowEnd);
+                totalOccurrences += expanded.size();
+                occurrences.addAll(expanded);
+            }
+            if (totalOccurrences > MAX_TOTAL_OCCURRENCES) {
+                ErrorCode.INVALID_REQUEST_BODY.throwException();
             }
         }
 
@@ -85,6 +100,7 @@ public class EventService {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
         validateName(request.getName());
+        validateDescription(request.getDescription());
 
         boolean allDay = Boolean.TRUE.equals(request.getAllDay());
         LocalDateTime startTime = normalizeStart(request.getStartTime(), allDay);
@@ -153,6 +169,7 @@ public class EventService {
         event.setRecurrenceInterval(recurrence.interval());
         event.setRecurrenceEnd(recurrence.end());
         if (request.hasDescription()) {
+            validateDescription(request.getDescription());
             event.setDescription(request.getDescription());
         }
         eventRepository.flush();
@@ -258,8 +275,20 @@ public class EventService {
         }
     }
 
+    private void validateWindowSpan(LocalDateTime from, LocalDateTime to) {
+        if (ChronoUnit.DAYS.between(from, to) > MAX_WINDOW_DAYS) {
+            ErrorCode.INVALID_REQUEST_BODY.throwException();
+        }
+    }
+
     private void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > 255) {
+            ErrorCode.INVALID_REQUEST_BODY.throwException();
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
     }

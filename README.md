@@ -33,7 +33,8 @@ Java with Quarkus, PostgreSQL, and Flyway migrations.
 
 ## Run the dashboard
 
-Copy `docker/.env.example` to `docker/.env`, set `JWT_SECRET` to a random value, then start the stack:
+Copy `docker/.env.example` to `docker/.env`, set `DB_PASSWORD` and `JWT_SECRET` to random values
+(for example with `openssl rand -hex 24` and `openssl rand -hex 32`), then start the stack:
 
 ```sh
 cp -n docker/.env.example docker/.env
@@ -41,7 +42,9 @@ docker compose -f docker/docker-compose.yml up --build
 ```
 
 Open the frontend at <http://localhost:8080>. Nginx serves the app and proxies API requests to the
-backend; Swagger is available at <http://localhost:8080/q/swagger-ui/>.
+backend. PostgreSQL is published only on `127.0.0.1:5432` so host-run tests can reach it; it is not
+exposed to the LAN. Swagger UI is available only when running the backend in dev mode at
+<http://localhost:8081/q/swagger-ui/>.
 
 For frontend development with Vite hot reload, start the backend in dev mode on port `8081`, then run:
 
@@ -108,9 +111,10 @@ Any authenticated user can create a group and becomes its owner. The owner can r
 group and add existing users by login. Group members can view and edit events and todos shared with
 the group. Personal items remain private.
 
-Removing a member revokes their access to the group's shared items. Deleting a group also deletes
-its shared events and todos. The `groupId` field is optional on event and todo creation; omitting it
-creates a personal item.
+Removing a member revokes their access to the group's shared items, including items they authored.
+Deleting a group also deletes its shared events and todos. The `groupId` field is optional on event
+and todo creation; omitting it creates a personal item. Group descriptions are limited to 2,000
+characters.
 
 ## Todo folders
 
@@ -129,14 +133,15 @@ When `GET /api/events` is called with a `from`/`to` window, recurring series are
 entry per occurrence. The entries keep the series `id`, while `startTime`/`endTime` describe the
 occurrence and `seriesStartTime`/`seriesEndTime` describe the series definition. Editing or deleting
 an event affects the whole series. All-day events are stored with a `00:00:00` start and a
-`23:59:59` end on the selected dates.
+`23:59:59` end on the selected dates. A window may span at most two years, and one response is
+limited to 10,000 occurrences; event descriptions are limited to 10,000 characters.
 
 ## Passwords
 
 Any signed-in user can change their own password with `PATCH /api/me/password`, providing
 `currentPassword` and `newPassword`. Administrators can set a new password for any account with
-`PATCH /api/admin/users/:id/password`; that reset revokes all refresh tokens for the account, so the
-user has to sign in again. Passwords must be between 8 and 128 characters.
+`PATCH /api/admin/users/:id/password`. Both paths revoke all refresh tokens for the account, so the
+user has to sign in again on every device. Passwords must be between 8 and 128 characters.
 
 
 # Database

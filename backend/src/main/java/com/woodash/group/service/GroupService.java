@@ -23,6 +23,8 @@ import jakarta.transaction.Transactional;
 @ApplicationScoped
 public class GroupService {
 
+    private static final int MAX_DESCRIPTION_LENGTH = 2000;
+
     @Inject
     GroupRepository groupRepository;
 
@@ -50,6 +52,7 @@ public class GroupService {
     @Transactional
     public GroupResponse create(GroupCreateRequest request, UUID userId) {
         validateName(request == null ? null : request.getName());
+        validateDescription(request == null ? null : request.getDescription());
         User owner = userRepository.findByIdOptional(userId).orElseThrow(ErrorCode.NOT_FOUND::getException);
 
         Group group = new Group();
@@ -82,6 +85,7 @@ public class GroupService {
             group.setName(request.getName().trim());
         }
         if (request.hasDescription()) {
+            validateDescription(request.getDescription());
             group.setDescription(request.getDescription());
         }
         groupRepository.flush();
@@ -139,6 +143,12 @@ public class GroupService {
 
     private void validateName(String name) {
         if (name == null || name.isBlank() || name.trim().length() > 100) {
+            ErrorCode.INVALID_REQUEST_BODY.throwException();
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
     }

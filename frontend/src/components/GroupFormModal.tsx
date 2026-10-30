@@ -57,7 +57,7 @@ export function GroupFormModal({ group, onClose, onSave }: GroupFormModalProps) 
         </label>
         <label className="field">
           <span>Description <small>Optional</small></span>
-          <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this group for?" />
+          <textarea rows={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this group for?" />
         </label>
         {error && <p className="form-error" role="alert">{error}</p>}
       </form>

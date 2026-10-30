@@ -11,6 +11,7 @@ import com.woodash.user.entity.User;
 import com.woodash.user.rest.dto.UserResponse;
 import com.woodash.user.service.UserService;
 
+import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -30,7 +31,6 @@ public class AuthenticationService {
     @Inject
     TokenService tokenService;
 
-    @Transactional
     public UserResponse registerUser(RegisterRequest register) {
         if (register == null || !validLogin(register.getLogin()) || !validPassword(register.getPassword())) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
@@ -40,19 +40,22 @@ public class AuthenticationService {
             ErrorCode.LOGIN_ALREADY_TAKEN.throwException();
         }
 
-        return toUserResponse(userService.createUser(register.getLogin(), register.getPassword()));
+        // Hash before opening the insert transaction; registration is anonymous, so the
+        // bcrypt work must not hold a pooled database connection.
+        String passwordHash = BcryptUtil.bcryptHash(register.getPassword());
+        return toUserResponse(userService.createUser(register.getLogin(), passwordHash));
     }
 
-    @Transactional
     public TokenResponse login(LoginRequest login) {
         if (login == null || login.getLogin() == null || login.getLogin().isBlank()
                 || login.getPassword() == null || login.getPassword().isEmpty()) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
 
+        // Keep the expensive password check outside a database transaction so anonymous
+        // login attempts cannot hold pooled connections while bcrypt runs.
         User user = userService.getUserByLogin(login.getLogin());
-        if (user == null || !io.quarkus.elytron.security.common.BcryptUtil.matches(login.getPassword(),
-                user.getPasswordHash())) {
+        if (user == null || !BcryptUtil.matches(login.getPassword(), user.getPasswordHash())) {
             ErrorCode.INVALID_CREDENTIALS.throwException();
         }
         return tokenService.createTokenPair(user);

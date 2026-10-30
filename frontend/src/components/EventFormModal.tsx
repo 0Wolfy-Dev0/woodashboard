@@ -175,7 +175,7 @@ export function EventFormModal({
         </label>
         <label className="field">
           <span>Description <small>Optional</small></span>
-          <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add a little more detail" />
+          <textarea rows={3} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add a little more detail" />
         </label>
 
         <label className="checkbox-field">

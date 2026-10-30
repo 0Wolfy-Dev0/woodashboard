@@ -8,10 +8,11 @@ interface ProfilePageProps {
   user: User
   session: Session | null
   onSignOut: () => Promise<void>
+  onPasswordChanged: () => void
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
 }
 
-export function ProfilePage({ user, session, onSignOut, onNotice }: ProfilePageProps) {
+export function ProfilePage({ user, session, onSignOut, onPasswordChanged, onNotice }: ProfilePageProps) {
   const [signingOut, setSigningOut] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -36,7 +37,7 @@ export function ProfilePage({ user, session, onSignOut, onNotice }: ProfilePageP
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      onNotice('Password updated.')
+      onPasswordChanged()
     } catch (error) {
       setPasswordError(error instanceof Error ? error.message : 'Could not update your password.')
     } finally {

@@ -55,7 +55,14 @@ public class EventRepository implements PanacheRepositoryBase<Event, UUID> {
 
     private void appendWindow(StringBuilder query, List<Object> parameters, LocalDateTime from, LocalDateTime to) {
         if (from != null) {
-            query.append(" and e.endTime >= ?").append(parameters.size() + 1);
+            // Recurring series may start before the requested window, so keep them when
+            // their series end still reaches the window. Non-recurring rows use the
+            // ordinary overlap check.
+            int seriesEndParameter = parameters.size() + 1;
+            query.append(" and ((e.recurrenceUnit is not null and (e.recurrenceEnd is null"
+                    + " or e.recurrenceEnd >= ?").append(seriesEndParameter)
+                    .append(")) or e.endTime >= ?").append(seriesEndParameter + 1).append(")");
+            parameters.add(from);
             parameters.add(from);
         }
         if (to != null) {

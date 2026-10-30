@@ -87,7 +87,7 @@ export function TodoFormModal({ todo, groups, folders, currentUserId, onClose, o
         </label>
         <label className="field">
           <span>Notes <small>Optional</small></span>
-          <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add a helpful note" />
+          <textarea rows={4} maxLength={10000} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add a helpful note" />
         </label>
         <label className="checkbox-field">
           <input type="checkbox" checked={completed} onChange={(e) => setCompleted(e.target.checked)} />

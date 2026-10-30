@@ -3,7 +3,6 @@ package com.woodash.user.repository;
 import com.woodash.user.entity.Role;
 import com.woodash.user.entity.User;
 
-import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
@@ -24,10 +23,10 @@ public class UserRepository implements PanacheRepositoryBase<User, UUID> {
     }
 
     @Transactional
-    public User createUser(String login, String password) {
+    public User createUser(String login, String passwordHash) {
         User user = new User();
         user.setLogin(login);
-        user.setPasswordHash(BcryptUtil.bcryptHash(password));
+        user.setPasswordHash(passwordHash);
         user.setRole(Role.USER);
         this.persistAndFlush(user);
         return user;

@@ -188,6 +188,10 @@ class ApiResourceTest {
                 .body(Map.of("name", ""))
                 .when().post("/api/todos")
                 .then().statusCode(400).body("message", notNullValue());
+        given().auth().oauth2(tokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Too much", "description", "x".repeat(10001)))
+                .when().post("/api/todos")
+                .then().statusCode(400).body("message", notNullValue());
 
         given().auth().oauth2(tokens.accessToken()).when().delete("/api/todos/{id}", openTodoId)
                 .then().statusCode(204).body(equalTo(""));
@@ -283,6 +287,11 @@ class ApiResourceTest {
         given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON).body("{}")
                 .when().patch("/api/events/{id}", firstEventId)
                 .then().statusCode(400).body("message", notNullValue());
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Too much", "description", "x".repeat(10001),
+                        "startTime", "2026-10-12T18:00:00", "endTime", "2026-10-12T19:00:00"))
+                .when().post("/api/events")
+                .then().statusCode(400).body("message", notNullValue());
 
         given().auth().oauth2(otherTokens.accessToken()).contentType(ContentType.JSON)
                 .body(Map.of("name", "Stolen")).when().patch("/api/events/{id}", firstEventId)
@@ -362,6 +371,11 @@ class ApiResourceTest {
         TokenPair ownerTokens = login(owner);
         TokenPair memberTokens = login(member);
         TokenPair outsiderTokens = login(outsider);
+
+        given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("name", "Too long", "description", "x".repeat(2001)))
+                .when().post("/api/groups")
+                .then().statusCode(400).body("message", notNullValue());
 
         Response createGroup = given().auth().oauth2(ownerTokens.accessToken())
                 .contentType(ContentType.JSON)
@@ -463,6 +477,17 @@ class ApiResourceTest {
                 .then().statusCode(204);
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
                 .then().statusCode(403);
+        // Leaving the group must also hide the shared todos the member authored there.
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/todos/{userId}", member.id())
+                .then().statusCode(200).body("id", not(hasItem(todoId)));
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/todos")
+                .then().statusCode(200).body("id", not(hasItem(todoId)));
+        given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
+                .body(Map.of("completed", true))
+                .when().patch("/api/todos/{id}", todoId)
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/todos")
+                .then().statusCode(200).body("id", hasItem(todoId));
 
         given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/events/{id}", eventId)
                 .then().statusCode(204);
@@ -623,6 +648,12 @@ class ApiResourceTest {
         given().auth().oauth2(tokens.accessToken()).when().get("/api/events")
                 .then().statusCode(200).body("size()", equalTo(2));
 
+        given().auth().oauth2(tokens.accessToken())
+                .queryParam("from", "2000-01-01T00:00:00")
+                .queryParam("to", "2028-01-01T00:00:00")
+                .when().get("/api/events")
+                .then().statusCode(400).body("message", notNullValue());
+
         String birthdayId = given().auth().oauth2(tokens.accessToken()).contentType(ContentType.JSON)
                 .body(Map.of("name", "Birthday", "startTime", "2000-05-04T00:00:00",
                         "endTime", "2000-05-04T23:59:59", "allDay", true, "recurrenceUnit", "YEARS"))
@@ -697,6 +728,9 @@ class ApiResourceTest {
                 .body(Map.of("currentPassword", user.password(), "newPassword", "new-password-123"))
                 .when().patch("/api/me/password")
                 .then().statusCode(204).body(equalTo(""));
+        given().contentType(ContentType.JSON).body(Map.of("refreshToken", tokens.refreshToken()))
+                .when().post("/api/auth/refresh")
+                .then().statusCode(401).body("message", equalTo("Refresh token is invalid, expired or revoked"));
         given().contentType(ContentType.JSON)
                 .body(Map.of("login", user.login(), "password", user.password()))
                 .when().post("/api/auth/login")

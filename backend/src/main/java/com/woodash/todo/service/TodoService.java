@@ -23,6 +23,8 @@ import jakarta.transaction.Transactional;
 @ApplicationScoped
 public class TodoService {
 
+    private static final int MAX_DESCRIPTION_LENGTH = 10000;
+
     @Inject
     TodoRepository todoRepository;
 
@@ -53,14 +55,23 @@ public class TodoService {
             ErrorCode.NOT_FOUND.throwException();
         }
         currentUser.requireOwnerOrAdmin(userId);
-        List<Todo> todos = completed == null ? todoRepository.listByUser(userId)
-                : todoRepository.listByUserAndCompleted(userId, completed);
+        // Admins may inspect every row of a user, including rows still attached to a
+        // group. Everyone else must go through the membership-scoped query so that
+        // leaving a group also removes access to the rows they authored there.
+        List<Todo> todos;
+        if (currentUser.isAdmin()) {
+            todos = completed == null ? todoRepository.listByUser(userId)
+                    : todoRepository.listByUserAndCompleted(userId, completed);
+        } else {
+            todos = todoRepository.listAccessible(userId, completed, null, null);
+        }
         return todos.stream().map(TodoResponse::from).toList();
     }
 
     @Transactional
     public TodoResponse create(TodoCreateRequest request, CurrentUser currentUser) {
         validateName(request == null ? null : request.getName());
+        validateDescription(request == null ? null : request.getDescription());
         UUID userId = currentUser.getUserId();
         User user = userRepository.findByIdOptional(userId).orElseThrow(ErrorCode.NOT_FOUND::getException);
         Group group = request.getGroupId() == null ? null
@@ -92,6 +103,7 @@ public class TodoService {
             todo.setName(request.getName());
         }
         if (request.hasDescription()) {
+            validateDescription(request.getDescription());
             todo.setDescription(request.getDescription());
         }
         if (request.hasCompleted()) {
@@ -125,6 +137,12 @@ public class TodoService {
 
     private void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > 255) {
+            ErrorCode.INVALID_REQUEST_BODY.throwException();
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
     }

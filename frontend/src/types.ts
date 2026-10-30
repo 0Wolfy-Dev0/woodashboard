@@ -17,6 +17,7 @@ export interface TokenResponse {
 
 export interface Session extends TokenResponse {
   expiresAt: number
+  userId: string
 }
 
 export interface Group {

@@ -18,7 +18,7 @@ import { LoginPage } from './components/LoginPage'
 import { TodoFormModal } from './components/TodoFormModal'
 import { Toasts } from './components/Toasts'
 import { useAutoRefresh } from './hooks/useAutoRefresh'
-import { clearSession, readSession, saveSession } from './session'
+import { clearSession, readSession, saveSession, SESSION_STORAGE_KEY } from './session'
 import { AdminPage } from './pages/AdminPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GroupsPage } from './pages/GroupsPage'
@@ -99,6 +99,36 @@ export default function App() {
   }, [notify])
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_STORAGE_KEY && event.key !== null) return
+      const next = readSession()
+      if (!next) {
+        setSession(null)
+        setUser(null)
+        setPage('home')
+        setGroups([])
+        setFolders([])
+        setLoadingUser(false)
+        notify('You were signed out in another tab.', 'info')
+        return
+      }
+      if (next.userId === user?.id) {
+        // Another tab rotated the tokens for the same account; keep this tab's view.
+        setSession(next)
+        return
+      }
+      setSession(next)
+      setUser(null)
+      setPage('home')
+      setGroups([])
+      setFolders([])
+      setRefreshVersion((version) => version + 1)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [notify, user?.id])
+
+  useEffect(() => {
     if (!session) {
       setLoadingUser(false)
       setUser(null)
@@ -117,11 +147,21 @@ export default function App() {
       .finally(() => { if (active) setLoadingUser(false) })
 
     return () => { active = false }
-  }, [session?.accessToken, notify])
+  }, [session?.userId, notify])
 
   function authenticated(tokens: Parameters<typeof saveSession>[0]) {
     setSession(saveSession(tokens))
     setPage('home')
+  }
+
+  function passwordChanged() {
+    clearSession()
+    setSession(null)
+    setUser(null)
+    setPage('home')
+    setGroups([])
+    setFolders([])
+    notify('Password updated. Please sign in again.', 'info')
   }
 
   async function signOut() {
@@ -290,7 +330,7 @@ export default function App() {
         {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} onCreateEvent={(start, allDay) => setEventDialog({ start, allDay })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
         {displayPage === 'todos' && <TodosPage groups={groups} folders={folders} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onFoldersChanged={async () => { await loadFolders(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
         {displayPage === 'groups' && <GroupsPage groups={groups} currentUser={user} onGroupsChanged={async () => { await loadGroups(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
-        {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onNotice={notify} />}
+        {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onPasswordChanged={passwordChanged} onNotice={notify} />}
         {displayPage === 'admin' && <AdminPage currentUser={user} refreshVersion={refreshVersion} onDeleteUser={deleteUser} onNotice={notify} />}
       </main>
 
