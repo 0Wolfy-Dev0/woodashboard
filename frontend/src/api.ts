@@ -2,6 +2,10 @@ import { clearSession, readSession, saveSession } from './session'
 import type {
   EventItem,
   EventPayload,
+  Group,
+  GroupPayload,
+  TodoFolder,
+  TodoFolderPayload,
   TodoItem,
   TodoPayload,
   TokenResponse,
@@ -148,8 +152,53 @@ export const api = {
 
   getMe: () => request<User>('/me'),
 
-  listEvents: (from?: string, to?: string) =>
-    request<EventItem[]>(`/events${queryString({ from, to })}`),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/me/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  listTodoFolders: () => request<TodoFolder[]>('/todo-folders'),
+
+  createTodoFolder: (payload: TodoFolderPayload) =>
+    request<TodoFolder>('/todo-folders', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateTodoFolder: (id: string, payload: Partial<TodoFolderPayload>) =>
+    request<TodoFolder>(`/todo-folders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTodoFolder: (id: string) =>
+    request<void>(`/todo-folders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  listGroups: () => request<Group[]>('/groups'),
+
+  createGroup: (payload: GroupPayload) =>
+    request<Group>('/groups', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateGroup: (id: string, payload: Partial<GroupPayload>) =>
+    request<Group>(`/groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteGroup: (id: string) =>
+    request<void>(`/groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  addGroupMember: (id: string, login: string) =>
+    request<Group>(`/groups/${encodeURIComponent(id)}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ login }),
+    }),
+
+  removeGroupMember: (id: string, userId: string) =>
+    request<void>(`/groups/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    }),
+
+  listEvents: (from?: string, to?: string, groupId?: string) =>
+    request<EventItem[]>(`/events${queryString({ from, to, groupId })}`),
 
   createEvent: (payload: EventPayload) =>
     request<EventItem>('/events', { method: 'POST', body: JSON.stringify(payload) }),
@@ -168,6 +217,9 @@ export const api = {
       `/todos/${encodeURIComponent(userId)}${queryString({ completed })}`,
     ),
 
+  listAccessibleTodos: (completed?: boolean, groupId?: string, folderId?: string) =>
+    request<TodoItem[]>(`/todos${queryString({ completed, groupId, folderId })}`),
+
   createTodo: (payload: TodoPayload) =>
     request<TodoItem>('/todos', { method: 'POST', body: JSON.stringify(payload) }),
 
@@ -183,6 +235,11 @@ export const api = {
   adminListUsers: () => request<User[]>('/admin/users'),
   adminDeleteUser: (id: string) =>
     request<void>(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  adminResetPassword: (id: string, newPassword: string) =>
+    request<void>(`/admin/users/${encodeURIComponent(id)}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newPassword }),
+    }),
   adminListEvents: () => request<EventItem[]>('/admin/events'),
   adminListTodos: () => request<TodoItem[]>('/admin/todos'),
 

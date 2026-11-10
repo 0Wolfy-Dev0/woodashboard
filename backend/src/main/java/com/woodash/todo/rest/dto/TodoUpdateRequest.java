@@ -1,12 +1,16 @@
 package com.woodash.todo.rest.dto;
 
+import java.util.UUID;
+
 public class TodoUpdateRequest {
     private String name;
     private String description;
     private Boolean completed;
+    private UUID folderId;
     private boolean nameProvided;
     private boolean descriptionProvided;
     private boolean completedProvided;
+    private boolean folderIdProvided;
 
     public String getName() {
         return name;
@@ -35,8 +39,17 @@ public class TodoUpdateRequest {
         this.completedProvided = true;
     }
 
+    public UUID getFolderId() {
+        return folderId;
+    }
+
+    public void setFolderId(UUID folderId) {
+        this.folderId = folderId;
+        this.folderIdProvided = true;
+    }
+
     public boolean hasUpdates() {
-        return nameProvided || descriptionProvided || completedProvided;
+        return nameProvided || descriptionProvided || completedProvided || folderIdProvided;
     }
 
     public boolean hasName() {
@@ -49,5 +62,9 @@ public class TodoUpdateRequest {
 
     public boolean hasCompleted() {
         return completedProvided;
+    }
+
+    public boolean hasFolderId() {
+        return folderIdProvided;
     }
 }

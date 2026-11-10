@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, CheckSquare, LoaderCircle, Search, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { CalendarDays, CheckSquare, KeyRound, LoaderCircle, Search, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { api } from '../api'
-import { formatDate, formatTime } from '../format'
+import { ResetPasswordModal } from '../components/ResetPasswordModal'
+import { formatDate, formatEventTime, formatRecurrence, formatTime } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EventItem, TodoItem, ToastNotice, User } from '../types'
 
@@ -22,6 +23,7 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [resetUser, setResetUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const loadedRef = useRef(false)
 
@@ -77,6 +79,13 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
     }
   }
 
+  async function resetPassword(newPassword: string) {
+    if (!resetUser) return
+    await api.adminResetPassword(resetUser.id, newPassword)
+    onNotice(`Password reset for ${resetUser.login}. Their sessions were signed out.`, 'info')
+    setResetUser(null)
+  }
+
   return (
     <div className="page-content admin-page">
       <div className="page-heading">
@@ -106,11 +115,11 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
           <div className="admin-loading"><LoaderCircle className="spin" size={19} /> Loading administration data…</div>
         ) : tab === 'users' ? (
           <div className="table-scroll"><table className="data-table"><thead><tr><th>USER</th><th>ROLE</th><th>JOINED</th><th>USER ID</th><th /></tr></thead><tbody>
-            {visibleUsers.map((user) => <tr key={user.id}><td><div className="table-user"><span className="table-avatar">{user.login.slice(0, 1).toUpperCase()}</span><strong>{user.login}{user.id === currentUser.id && <small className="you-label">YOU</small>}</strong></div></td><td><span className={`role-badge role-badge-small ${user.role === 'ADMIN' ? 'role-admin' : 'role-user'}`}>{user.role === 'ADMIN' ? <ShieldCheck size={12} /> : <Users size={12} />}{user.role}</span></td><td>{formatDate(user.creationTime)}</td><td><code>{user.id.slice(0, 8)}…</code></td><td className="table-actions">{user.id !== currentUser.id && <button className="icon-button delete-user-button" onClick={() => void deleteUser(user)} aria-label={`Delete ${user.login}`} title="Delete user"><Trash2 size={16} /></button>}</td></tr>)}
+            {visibleUsers.map((user) => <tr key={user.id}><td><div className="table-user"><span className="table-avatar">{user.login.slice(0, 1).toUpperCase()}</span><strong>{user.login}{user.id === currentUser.id && <small className="you-label">YOU</small>}</strong></div></td><td><span className={`role-badge role-badge-small ${user.role === 'ADMIN' ? 'role-admin' : 'role-user'}`}>{user.role === 'ADMIN' ? <ShieldCheck size={12} /> : <Users size={12} />}{user.role}</span></td><td>{formatDate(user.creationTime)}</td><td><code>{user.id.slice(0, 8)}…</code></td><td className="table-actions"><button className="icon-button" onClick={() => setResetUser(user)} aria-label={`Reset password for ${user.login}`} title="Reset password"><KeyRound size={16} /></button>{user.id !== currentUser.id && <button className="icon-button delete-user-button" onClick={() => void deleteUser(user)} aria-label={`Delete ${user.login}`} title="Delete user"><Trash2 size={16} /></button>}</td></tr>)}
           </tbody></table>{visibleUsers.length === 0 && <EmptyAdmin label="No users match that search." />}</div>
         ) : tab === 'events' ? (
           <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENT</th><th>OWNER</th><th>STARTS</th><th>ENDS</th><th>DESCRIPTION</th></tr></thead><tbody>
-            {visibleEvents.map((event) => <tr key={event.id}><td><strong>{event.name}</strong></td><td>{userNames.get(event.userId) ?? 'Unknown user'}</td><td><span>{formatDate(event.startTime)}</span><small className="table-subline">{formatTime(event.startTime)}</small></td><td><span>{formatDate(event.endTime)}</span><small className="table-subline">{formatTime(event.endTime)}</small></td><td className="table-description">{event.description || '—'}</td></tr>)}
+            {visibleEvents.map((event) => <tr key={event.id}><td><strong>{event.name}</strong>{event.recurrenceUnit && <small className="table-subline">{formatRecurrence(event.recurrenceUnit, event.recurrenceInterval)}</small>}</td><td>{userNames.get(event.userId) ?? 'Unknown user'}</td><td><span>{formatDate(event.startTime)}</span><small className="table-subline">{formatEventTime(event)}</small></td><td><span>{formatDate(event.endTime)}</span><small className="table-subline">{event.allDay ? 'All day' : formatTime(event.endTime)}</small></td><td className="table-description">{event.description || '—'}</td></tr>)}
           </tbody></table>{visibleEvents.length === 0 && <EmptyAdmin label="No events match these filters." />}</div>
         ) : (
           <div className="table-scroll"><table className="data-table"><thead><tr><th>TASK</th><th>OWNER</th><th>STATUS</th><th>ADDED</th><th>DESCRIPTION</th></tr></thead><tbody>
@@ -118,6 +127,10 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
           </tbody></table>{visibleTodos.length === 0 && <EmptyAdmin label="No tasks match that search." />}</div>
         )}
       </section>
+
+      {resetUser && (
+        <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} onSave={resetPassword} />
+      )}
     </div>
   )
 }

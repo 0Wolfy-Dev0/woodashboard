@@ -1,6 +1,7 @@
 package com.woodash.todo.entity;
 
 import com.woodash.common.BaseEntity;
+import com.woodash.group.entity.Group;
 import com.woodash.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,6 +27,14 @@ public class Todo extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private Group sharedGroup;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_id")
+    private TodoFolder folder;
 
     @Column(nullable = false)
     private boolean completed = false;

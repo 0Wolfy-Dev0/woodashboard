@@ -6,13 +6,14 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin, { type DateClickArg } from '@fullcalendar/interaction'
 import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { api } from '../api'
-import { formatDate, formatLocalDateTime, formatTime, relativeDayLabel } from '../format'
+import { allDayEndExclusive, formatDate, formatEventTime, formatLocalDateTime, relativeDayLabel } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import type { EventItem, ToastNotice } from '../types'
+import type { EventItem, Group, ToastNotice } from '../types'
 
 interface CalendarPageProps {
+  groups: Group[]
   refreshVersion: number
-  onCreateEvent: (start: Date) => void
+  onCreateEvent: (start: Date, allDay: boolean) => void
   onEditEvent: (event: EventItem) => void
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
 }
@@ -22,8 +23,9 @@ interface DateRange {
   end: Date
 }
 
-export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
+export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
   const [events, setEvents] = useState<EventItem[]>([])
+  const [groupId, setGroupId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const rangeRef = useRef<DateRange | null>(null)
@@ -36,7 +38,8 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
     try {
       // FullCalendar's visible range end is exclusive; the API's `to` is inclusive.
       const inclusiveEnd = new Date(range.end.getTime() - 1000)
-      const result = await api.listEvents(formatLocalDateTime(range.start), formatLocalDateTime(inclusiveEnd))
+      const result = await api.listEvents(formatLocalDateTime(range.start), formatLocalDateTime(inclusiveEnd),
+        groupId || undefined)
       setEvents(result.sort((a, b) => a.startTime.localeCompare(b.startTime)))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Could not load calendar events.'
@@ -45,19 +48,24 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
     } finally {
       if (!background) setLoading(false)
     }
-  }, [onNotice])
+  }, [groupId, onNotice])
 
   useEffect(() => {
     void loadEvents()
   }, [loadEvents, refreshVersion])
 
+  useEffect(() => {
+    if (groupId && !groups.some((group) => group.id === groupId)) setGroupId('')
+  }, [groupId, groups])
+
   useAutoRefresh(() => loadEvents(true))
 
   const calendarEvents = useMemo(() => events.map((event, index) => ({
-    id: event.id,
+    id: `${event.id}@${event.startTime}`,
     title: event.name,
-    start: event.startTime,
-    end: event.endTime,
+    start: event.allDay ? event.startTime.slice(0, 10) : event.startTime,
+    end: event.allDay ? allDayEndExclusive(event.endTime) : event.endTime,
+    allDay: event.allDay,
     extendedProps: { event },
     classNames: [`calendar-event-tone-${index % 3}`],
   })), [events])
@@ -68,9 +76,7 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
   }, [events])
 
   function createAtDate(info: DateClickArg) {
-    const start = new Date(info.date)
-    if (info.allDay) start.setHours(9, 0, 0, 0)
-    onCreateEvent(start)
+    onCreateEvent(new Date(info.date), info.allDay)
   }
 
   return (
@@ -82,10 +88,14 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
           <p>Plans, little milestones, and everything in between.</p>
         </div>
         <div className="heading-actions">
+          <select className="select-control" value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="Filter events by group">
+            <option value="">All calendars</option>
+            {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
           <button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>
             {loading ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={15} />} Refresh
           </button>
-          <button className="button button-primary" type="button" onClick={() => onCreateEvent(new Date())}><CalendarPlus size={16} /> Add event</button>
+          <button className="button button-primary" type="button" onClick={() => onCreateEvent(new Date(), false)}><CalendarPlus size={16} /> Add event</button>
         </div>
       </div>
 
@@ -140,7 +150,7 @@ export function CalendarPage({ refreshVersion, onCreateEvent, onEditEvent, onNot
                 {upcoming.map((event, index) => (
                   <button className="upcoming-event" key={event.id} onClick={() => onEditEvent(event)}>
                     <span className={`upcoming-event-bar upcoming-event-bar-${index % 3}`} />
-                    <span className="upcoming-event-main"><strong>{event.name}</strong><small>{relativeDayLabel(event.startTime)} · {formatTime(event.startTime)}</small></span>
+                    <span className="upcoming-event-main"><strong>{event.name}</strong><small>{relativeDayLabel(event.startTime)} · {formatEventTime(event)}{event.recurrenceUnit ? ' · Repeats' : ''}</small></span>
                     {event.description && <span className="upcoming-event-description">{event.description}</span>}
                   </button>
                 ))}

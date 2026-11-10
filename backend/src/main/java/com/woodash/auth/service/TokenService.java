@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.crypto.Mac;
@@ -22,15 +23,25 @@ import com.woodash.auth.security.AccessTokenClaims;
 import com.woodash.user.entity.Role;
 import com.woodash.user.entity.User;
 
+import io.quarkus.runtime.Startup;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+@Startup
 @ApplicationScoped
 public class TokenService {
     private static final String JWT_HEADER = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final long REFRESH_TOKEN_LIFETIME_DAYS = 30;
+    private static final int MIN_JWT_SECRET_BYTES = 32;
+    private static final Set<String> KNOWN_INSECURE_SECRETS = Set.of(
+            "woodashboard-local-development-signing-secret-change-me",
+            "change-me",
+            "changeme",
+            "secret");
 
     @Inject
     RefreshTokenRepository refreshTokenRepository;
@@ -44,6 +55,17 @@ public class TokenService {
     @ConfigProperty(name = "app.jwt.access-token-seconds", defaultValue = "900")
     long accessTokenLifetimeSeconds;
 
+    @PostConstruct
+    void validateJwtSecret() {
+        if (jwtSecret == null || jwtSecret.isBlank()
+                || jwtSecret.getBytes(StandardCharsets.UTF_8).length < MIN_JWT_SECRET_BYTES
+                || KNOWN_INSECURE_SECRETS.contains(jwtSecret)) {
+            throw new IllegalStateException(
+                    "app.jwt.secret must be a random value of at least 32 bytes; refusing to start");
+        }
+    }
+
+    @Transactional
     public TokenResponse createTokenPair(User user) {
         String refreshTokenValue = createOpaqueRefreshToken();
         RefreshToken refreshToken = new RefreshToken();

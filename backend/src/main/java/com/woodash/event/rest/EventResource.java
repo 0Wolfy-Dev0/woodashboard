@@ -37,14 +37,16 @@ public class EventResource {
     CurrentUser currentUser;
 
     @GET
-    public List<EventResponse> list(@QueryParam("from") String fromValue, @QueryParam("to") String toValue) {
-        return eventService.listByUser(currentUser.getUserId(), parseDateTime(fromValue), parseDateTime(toValue));
+    public List<EventResponse> list(@QueryParam("from") String fromValue, @QueryParam("to") String toValue,
+            @QueryParam("groupId") UUID groupId) {
+        return eventService.listAccessible(currentUser.getUserId(), groupId, parseDateTime(fromValue),
+                parseDateTime(toValue), currentUser);
     }
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response create(EventCreateRequest request) {
-        EventResponse event = eventService.create(request, currentUser.getUserId());
+        EventResponse event = eventService.create(request, currentUser);
         return Response.created(URI.create("/api/events/" + event.getId())).entity(event).build();
     }
 

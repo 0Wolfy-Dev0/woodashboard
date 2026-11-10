@@ -4,6 +4,7 @@ import com.woodash.event.entity.Event;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +28,46 @@ public class EventRepository implements PanacheRepositoryBase<Event, UUID> {
         return list("user.id = ?1 and startTime <= ?2 order by startTime", userId, to);
     }
 
+    public List<Event> listAccessible(UUID userId, LocalDateTime from, LocalDateTime to) {
+        StringBuilder query = new StringBuilder(
+                "select distinct e from Event e left join e.sharedGroup g left join g.members gm"
+                        + " where ((e.sharedGroup is null and e.user.id = ?1)"
+                        + " or (e.sharedGroup is not null and gm.user.id = ?1))");
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(userId);
+        appendWindow(query, parameters, from, to);
+        query.append(" order by e.startTime");
+        return list(query.toString(), parameters.toArray());
+    }
+
+    public List<Event> listByGroup(UUID groupId, LocalDateTime from, LocalDateTime to) {
+        StringBuilder query = new StringBuilder("from Event e where e.sharedGroup.id = ?1");
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(groupId);
+        appendWindow(query, parameters, from, to);
+        query.append(" order by e.startTime");
+        return list(query.toString(), parameters.toArray());
+    }
+
     public List<Event> listAllOrdered() {
         return list("order by startTime");
+    }
+
+    private void appendWindow(StringBuilder query, List<Object> parameters, LocalDateTime from, LocalDateTime to) {
+        if (from != null) {
+            // Recurring series may start before the requested window, so keep them when
+            // their series end still reaches the window. Non-recurring rows use the
+            // ordinary overlap check.
+            int seriesEndParameter = parameters.size() + 1;
+            query.append(" and ((e.recurrenceUnit is not null and (e.recurrenceEnd is null"
+                    + " or e.recurrenceEnd >= ?").append(seriesEndParameter)
+                    .append(")) or e.endTime >= ?").append(seriesEndParameter + 1).append(")");
+            parameters.add(from);
+            parameters.add(from);
+        }
+        if (to != null) {
+            query.append(" and e.startTime <= ?").append(parameters.size() + 1);
+            parameters.add(to);
+        }
     }
 }

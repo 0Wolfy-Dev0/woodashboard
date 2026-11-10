@@ -21,18 +21,20 @@ You can run your application in dev mode that enables live coding using:
 ## Running with Docker Compose
 
 From the repository root, if `docker/.env` does not exist yet, copy the template and set
-`JWT_SECRET` to a random value (for example, the output of `openssl rand -hex 32`). Compose reads
-the file beside `docker-compose.yml`, and `env_file` passes its values into the API container:
+`DB_PASSWORD` and `JWT_SECRET` to random values (for example, the output of `openssl rand -hex 24`
+and `openssl rand -hex 32`). Compose reads the file beside `docker-compose.yml`, and `env_file`
+passes its values into the API container:
 
 ```shell
 cp -n docker/.env.example docker/.env
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-Compose supplies the secret to the running API container; it is not copied into the image. The
+Compose supplies the secrets to the running API container; they are not copied into the image. The
 frontend is available at <http://localhost:8080>; its Nginx server proxies `/api` to the backend.
-The backend remains directly available at <http://localhost:8081>, and Swagger is also proxied at
-<http://localhost:8080/q/swagger-ui/>.
+The API is not published directly by Compose, and PostgreSQL is bound to `127.0.0.1:5432` for
+host-run tests only. Swagger UI is dev-only; when running Quarkus in dev mode outside Docker, it is
+available at <http://localhost:8081/q/swagger-ui/>.
 
 ## API authentication
 
@@ -40,24 +42,40 @@ Register with `POST /api/auth/register`, then log in with `POST /api/auth/login`
 `accessToken` as a Bearer token in Swagger's **Authorize** dialog. Access tokens last 15 minutes by
 default; `POST /api/auth/refresh` rotates the refresh token.
 
-For deployments, set `JWT_SECRET` to a long, random secret. The default key in
-`application.properties` is only for local development. New accounts have the `USER` role; to
+Packaged deployments must set `JWT_SECRET` to a random value of at least 32 bytes; the application
+refuses to start with a missing, short, or known placeholder secret. Dev and test profiles use
+non-production fallback keys so local startup keeps working. New accounts have the `USER` role; to
 promote an account for testing admin endpoints, set its `users.role` to `ADMIN` in PostgreSQL and
 log in again to receive a token with the updated role.
 
 ```shell script
 # in sql shell
-update uers set role = 'ADMIN' where login = 'user' ;
+update users set role = 'ADMIN' where login = 'user' ;
 ```
 
-The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml` and can be run with:
+## Group sharing
+
+Users can create groups, add members by login, and share events/todos with a group. Any group member
+can edit or delete shared items; only the group owner or an admin can manage the group and its
+members. Group endpoints are documented in the root `README.md` and in Swagger.
+
+Todos can also be organized into private folders, events can be all-day or repeat on a simple
+schedule, and every account can change its password from the profile page. Admins can reset another
+user's password from the administration page. The root `README.md` and Swagger describe the request
+fields.
+
+The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml`. Create
+`docker/.env` with `DB_PASSWORD` first if it does not exist. Start the database, then run:
 
 ```shell
+docker compose -f docker/docker-compose.yml up -d db
+cd backend
 ./mvnw test
 ```
 
 > **_NOTE:_** Quarkus' Dev UI is available in dev mode at <http://localhost:8081/q/dev/>. Set
-> `HTTP_PORT` to override the backend port.
+> `HTTP_PORT` to override the backend port. Packaged runs bind `127.0.0.1` by default; set
+> `HTTP_HOST=0.0.0.0` only when a trusted reverse proxy needs to reach the API directly.
 
 ## Packaging and running the application
 
@@ -70,7 +88,7 @@ The application can be packaged using:
 It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
 Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+The application is now runnable using `JWT_SECRET=... DB_PASSWORD=... java -jar target/quarkus-app/quarkus-run.jar`.
 
 If you want to build an _über-jar_, execute the following command:
 
@@ -78,7 +96,8 @@ If you want to build an _über-jar_, execute the following command:
 ./mvnw package -Dquarkus.package.jar.type=uber-jar
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+The application, packaged as an _über-jar_, is now runnable using
+`JWT_SECRET=... DB_PASSWORD=... java -jar target/*-runner.jar`.
 
 ## Creating a native executable
 
@@ -94,7 +113,8 @@ Or, if you don't have GraalVM installed, you can run the native executable build
 ./mvnw package -Dnative -Dquarkus.native.container-build=true
 ```
 
-You can then execute your native executable with: `./target/db-service-1.0.0-SNAPSHOT-runner`
+You can then execute your native executable with:
+`JWT_SECRET=... DB_PASSWORD=... ./target/db-service-1.0.0-SNAPSHOT-runner`
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 

@@ -9,7 +9,7 @@ info:
     token is stored server side. Refresh tokens are rotated on every use.
 
     **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
-  version: 1.0.0
+  version: 1.3.0
 servers:
   - url: /
     description: Same origin (port 8081 locally; reverse proxy in deployments)
@@ -18,6 +18,7 @@ tags:
   - name: Current user
   - name: Todos
   - name: Events
+  - name: Groups
   - name: Administration
     description: ADMIN role only
 
@@ -144,12 +145,136 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api/me/password:
+    patch:
+      tags: [Current user]
+      summary: Change the authenticated user's password
+      description: Changing the password revokes every refresh token for the account. Sign in again on each device.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password updated
+        '400':
+          description: Invalid new password or current password does not match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # -------------------------------------------------------------- TODO FOLDERS
+  /api/todo-folders:
+    get:
+      tags: [Todos]
+      summary: List the authenticated user's todo folders
+      operationId: listTodoFolders
+      responses:
+        '200':
+          description: Personal todo folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoFolderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Todos]
+      summary: Create a todo folder
+      operationId: createTodoFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoFolderCreateRequest'
+      responses:
+        '201':
+          description: Folder created
+          headers:
+            Location:
+              description: URL of the new folder
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoFolderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: A folder with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/todo-folders/{id}:
+    patch:
+      tags: [Todos]
+      summary: Rename a todo folder
+      description: Only the owner can rename their folder.
+      operationId: updateTodoFolder
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoFolderUpdateRequest'
+      responses:
+        '200':
+          description: Updated folder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoFolderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A folder with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+    delete:
+      tags: [Todos]
+      summary: Delete a todo folder
+      description: Only the owner can delete their folder. Its tasks are kept and become unfiled.
+      operationId: deleteTodoFolder
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ----------------------------------------------------------------- TODOS
   /api/todos/{userId}:
     get:
       tags: [Todos]
       summary: List the todos of a user
-      description: A `USER` can only list their own todos. An `ADMIN` can list anyone's.
+      description: |
+        A `USER` can only list their own todos, and only personal todos or shared todos in
+        groups they currently belong to. An `ADMIN` can list every row belonging to anyone.
       operationId: listTodosByUser
       parameters:
         - $ref: '#/components/parameters/UserId'
@@ -175,6 +300,42 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /api/todos:
+    get:
+      tags: [Todos]
+      summary: List accessible todos
+      description: Returns personal todos and todos shared with groups the authenticated user belongs to.
+      operationId: listAccessibleTodos
+      parameters:
+        - name: completed
+          in: query
+          description: Filter on completion state. Omit to get all.
+          schema:
+            type: boolean
+        - name: groupId
+          in: query
+          description: Only return todos shared with this group
+          schema:
+            type: string
+            format: uuid
+        - name: folderId
+          in: query
+          description: Only return todos in one of the authenticated user's folders
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Accessible todos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       tags: [Todos]
       summary: Create a todo
@@ -255,8 +416,13 @@ paths:
       tags: [Events]
       summary: List events
       description: |
-        Returns the events of the authenticated user.
+        Returns personal events and events shared with groups the authenticated user belongs to.
         Use `from` / `to` to get only the events overlapping a window (handy for a calendar view).
+        Recurring series are expanded into one entry per occurrence inside that window, and every
+        occurrence keeps the series `id` while exposing its own `startTime` / `endTime`. Without
+        `from` and `to`, recurring series are returned once as their base definition.
+        Use `groupId` to show only one group's events.
+        A window may span at most two years, and one response is limited to 10,000 occurrences.
       operationId: listEvents
       parameters:
         - name: from
@@ -273,6 +439,12 @@ paths:
             type: string
             format: date-time
             example: '2026-10-31T23:59:59'
+        - name: groupId
+          in: query
+          description: Only return events shared with this group
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Events
@@ -286,6 +458,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       tags: [Events]
       summary: Create an event
@@ -360,6 +534,178 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ---------------------------------------------------------------- GROUPS
+  /api/groups:
+    get:
+      tags: [Groups]
+      summary: List groups of the authenticated user
+      operationId: listGroups
+      responses:
+        '200':
+          description: Groups the user belongs to
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Groups]
+      summary: Create a group
+      description: The creator becomes the group owner and first member.
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupCreateRequest'
+      responses:
+        '201':
+          description: Group created
+          headers:
+            Location:
+              description: URL of the new group
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/groups/{id}:
+    get:
+      tags: [Groups]
+      summary: Get a group
+      description: Members and admins can access a group.
+      operationId: getGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Groups]
+      summary: Update a group
+      description: Only the owner or an admin can update a group.
+      operationId: updateGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupUpdateRequest'
+      responses:
+        '200':
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Groups]
+      summary: Delete a group
+      description: Only the owner or an admin can delete a group. Its events, todos and memberships are deleted too.
+      operationId: deleteGroup
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/groups/{id}/members:
+    post:
+      tags: [Groups]
+      summary: Add a member by login
+      description: Only the group owner or an admin can add members.
+      operationId: addGroupMember
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMemberRequest'
+      responses:
+        '200':
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User is already a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+
+  /api/groups/{id}/members/{userId}:
+    delete:
+      tags: [Groups]
+      summary: Remove a member
+      description: The owner or an admin can remove anyone except the owner. A member can remove themselves.
+      operationId: removeGroupMember
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Member removed
+        '400':
+          description: The group owner cannot be removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ----------------------------------------------------------------- ADMIN
   /api/admin/users:
     get:
@@ -391,6 +737,32 @@ paths:
       responses:
         '204':
           description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/users/{id}/password:
+    patch:
+      tags: [Administration]
+      summary: Reset a user's password
+      description: Sets a new password and revokes every refresh token of that account.
+      operationId: adminResetPassword
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password reset
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -501,6 +873,10 @@ components:
       type: string
       enum: [USER, ADMIN]
 
+    RecurrenceUnit:
+      type: string
+      enum: [DAYS, WEEKS, MONTHS, YEARS]
+
     # ---- auth
     RegisterRequest:
       type: object
@@ -528,6 +904,29 @@ components:
         password:
           type: string
           format: password
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+
+    ResetPasswordRequest:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
 
     RefreshRequest:
       type: object
@@ -573,6 +972,105 @@ components:
           type: string
           format: date-time
 
+    # ---- group
+    GroupCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Household
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    GroupUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    GroupMemberRequest:
+      type: object
+      required: [login]
+      properties:
+        login:
+          type: string
+          example: alice
+
+    GroupResponse:
+      type: object
+      required: [id, name, ownerId, ownerLogin, members, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        ownerId:
+          type: string
+          format: uuid
+        ownerLogin:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
+    # ---- todo folder
+    TodoFolderCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Home
+
+    TodoFolderUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+
+    TodoFolderResponse:
+      type: object
+      required: [id, name, userId, creationTime, lastModificationTime]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        userId:
+          type: string
+          format: uuid
+        creationTime:
+          type: string
+          format: date-time
+        lastModificationTime:
+          type: string
+          format: date-time
+
     # ---- todo
     TodoCreateRequest:
       type: object
@@ -584,10 +1082,21 @@ components:
           example: Update the Pi-hole
         description:
           type: string
+          maxLength: 10000
           nullable: true
         completed:
           type: boolean
           default: false
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Share this todo with a group the user belongs to
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Personal folder of the authenticated user
 
     TodoUpdateRequest:
       type: object
@@ -598,9 +1107,15 @@ components:
           maxLength: 255
         description:
           type: string
+          maxLength: 10000
           nullable: true
         completed:
           type: boolean
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set to null to remove the task from its folder
 
     TodoResponse:
       type: object
@@ -617,6 +1132,14 @@ components:
         userId:
           type: string
           format: uuid
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+        folderId:
+          type: string
+          format: uuid
+          nullable: true
         completed:
           type: boolean
         creationTime:
@@ -637,16 +1160,42 @@ components:
           example: Backup check
         description:
           type: string
+          maxLength: 10000
           nullable: true
         startTime:
           type: string
           format: date-time
           example: '2026-10-12T18:00:00'
+          description: For all-day events the time part is normalized to 00:00:00
         endTime:
           type: string
           format: date-time
-          description: Must be >= startTime
+          description: Must be >= startTime. For all-day events the time part is normalized to 23:59:59
           example: '2026-10-12T19:00:00'
+        allDay:
+          type: boolean
+          default: false
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+          description: Omit or send null for a one-off event
+        recurrenceInterval:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 1
+          description: Number of units between occurrences (for example 3 days)
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last allowed occurrence start; omit for an endless series
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Share this event with a group the user belongs to
 
     EventUpdateRequest:
       type: object
@@ -657,6 +1206,7 @@ components:
           maxLength: 255
         description:
           type: string
+          maxLength: 10000
           nullable: true
         startTime:
           type: string
@@ -664,10 +1214,25 @@ components:
         endTime:
           type: string
           format: date-time
+        allDay:
+          type: boolean
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+          description: Set to null to turn the series into a one-off event
+        recurrenceInterval:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
 
     EventResponse:
       type: object
-      required: [id, name, userId, startTime, endTime, creationTime, lastModificationTime]
+      required: [id, name, userId, allDay, startTime, endTime, seriesStartTime, seriesEndTime, creationTime, lastModificationTime]
       properties:
         id:
           type: string
@@ -680,12 +1245,39 @@ components:
         userId:
           type: string
           format: uuid
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+        allDay:
+          type: boolean
         startTime:
           type: string
           format: date-time
+          description: Start of this occurrence
         endTime:
           type: string
           format: date-time
+          description: End of this occurrence
+        seriesStartTime:
+          type: string
+          format: date-time
+          description: Start of the series definition (same as startTime for one-off events)
+        seriesEndTime:
+          type: string
+          format: date-time
+          description: End of the series definition (same as endTime for one-off events)
+        recurrenceUnit:
+          allOf:
+            - $ref: '#/components/schemas/RecurrenceUnit'
+          nullable: true
+        recurrenceInterval:
+          type: integer
+          nullable: true
+        recurrenceEnd:
+          type: string
+          format: date-time
+          nullable: true
         creationTime:
           type: string
           format: date-time

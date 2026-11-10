@@ -5,7 +5,10 @@ import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
 import com.woodash.common.ErrorCode;
+import com.woodash.group.entity.Group;
+import com.woodash.group.service.GroupAccessService;
 import com.woodash.todo.entity.Todo;
+import com.woodash.todo.entity.TodoFolder;
 import com.woodash.todo.repository.TodoRepository;
 import com.woodash.todo.rest.dto.TodoCreateRequest;
 import com.woodash.todo.rest.dto.TodoResponse;
@@ -20,32 +23,69 @@ import jakarta.transaction.Transactional;
 @ApplicationScoped
 public class TodoService {
 
+    private static final int MAX_DESCRIPTION_LENGTH = 10000;
+
     @Inject
     TodoRepository todoRepository;
 
     @Inject
     UserRepository userRepository;
 
+    @Inject
+    GroupAccessService groupAccessService;
+
+    @Inject
+    TodoFolderService todoFolderService;
+
+    public List<TodoResponse> listAccessible(UUID userId, Boolean completed, UUID groupId, UUID folderId,
+            CurrentUser currentUser) {
+        if (groupId != null) {
+            groupAccessService.requireVisibleGroup(groupId, currentUser);
+        }
+        if (folderId != null) {
+            todoFolderService.requireOwnedFolder(folderId, currentUser.getUserId());
+        }
+        return todoRepository.listAccessible(userId, completed, groupId, folderId).stream()
+                .map(TodoResponse::from)
+                .toList();
+    }
+
     public List<TodoResponse> listByUser(UUID userId, Boolean completed, CurrentUser currentUser) {
         if (userRepository.findByIdOptional(userId).isEmpty()) {
             ErrorCode.NOT_FOUND.throwException();
         }
         currentUser.requireOwnerOrAdmin(userId);
-        List<Todo> todos = completed == null ? todoRepository.listByUser(userId)
-                : todoRepository.listByUserAndCompleted(userId, completed);
+        // Admins may inspect every row of a user, including rows still attached to a
+        // group. Everyone else must go through the membership-scoped query so that
+        // leaving a group also removes access to the rows they authored there.
+        List<Todo> todos;
+        if (currentUser.isAdmin()) {
+            todos = completed == null ? todoRepository.listByUser(userId)
+                    : todoRepository.listByUserAndCompleted(userId, completed);
+        } else {
+            todos = todoRepository.listAccessible(userId, completed, null, null);
+        }
         return todos.stream().map(TodoResponse::from).toList();
     }
 
     @Transactional
-    public TodoResponse create(TodoCreateRequest request, UUID userId) {
+    public TodoResponse create(TodoCreateRequest request, CurrentUser currentUser) {
         validateName(request == null ? null : request.getName());
+        validateDescription(request == null ? null : request.getDescription());
+        UUID userId = currentUser.getUserId();
         User user = userRepository.findByIdOptional(userId).orElseThrow(ErrorCode.NOT_FOUND::getException);
+        Group group = request.getGroupId() == null ? null
+                : groupAccessService.requireVisibleGroup(request.getGroupId(), currentUser);
+        TodoFolder folder = request.getFolderId() == null ? null
+                : todoFolderService.requireOwnedFolder(request.getFolderId(), userId);
 
         Todo todo = new Todo();
         todo.setName(request.getName());
         todo.setDescription(request.getDescription());
         todo.setCompleted(Boolean.TRUE.equals(request.getCompleted()));
         todo.setUser(user);
+        todo.setSharedGroup(group);
+        todo.setFolder(folder);
         todoRepository.persistAndFlush(todo);
         return TodoResponse.from(todo);
     }
@@ -56,13 +96,14 @@ public class TodoService {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
         Todo todo = todoRepository.findByIdOptional(id).orElseThrow(ErrorCode.NOT_FOUND::getException);
-        currentUser.requireOwnerOrAdmin(todo.getUser().getId());
+        groupAccessService.requireItemAccess(todo.getUser().getId(), todo.getSharedGroup(), currentUser);
 
         if (request.hasName()) {
             validateName(request.getName());
             todo.setName(request.getName());
         }
         if (request.hasDescription()) {
+            validateDescription(request.getDescription());
             todo.setDescription(request.getDescription());
         }
         if (request.hasCompleted()) {
@@ -70,6 +111,13 @@ public class TodoService {
                 ErrorCode.INVALID_REQUEST_BODY.throwException();
             }
             todo.setCompleted(request.getCompleted());
+        }
+        if (request.hasFolderId()) {
+            if (!currentUser.isAdmin() && !currentUser.getUserId().equals(todo.getUser().getId())) {
+                ErrorCode.FORBIDDEN.throwException();
+            }
+            todo.setFolder(request.getFolderId() == null ? null
+                    : todoFolderService.requireOwnedFolder(request.getFolderId(), todo.getUser().getId()));
         }
 
         todoRepository.flush();
@@ -79,7 +127,7 @@ public class TodoService {
     @Transactional
     public void delete(UUID id, CurrentUser currentUser) {
         Todo todo = todoRepository.findByIdOptional(id).orElseThrow(ErrorCode.NOT_FOUND::getException);
-        currentUser.requireOwnerOrAdmin(todo.getUser().getId());
+        groupAccessService.requireItemAccess(todo.getUser().getId(), todo.getSharedGroup(), currentUser);
         todoRepository.delete(todo);
     }
 
@@ -89,6 +137,12 @@ public class TodoService {
 
     private void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > 255) {
+            ErrorCode.INVALID_REQUEST_BODY.throwException();
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
     }

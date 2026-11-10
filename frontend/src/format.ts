@@ -16,6 +16,18 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
+const recurrenceNames = {
+  DAYS: ['day', 'days'],
+  WEEKS: ['week', 'weeks'],
+  MONTHS: ['month', 'months'],
+  YEARS: ['year', 'years'],
+} as const
+
+export function formatLocalDate(value: Date): string {
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+}
+
 export function formatDate(value: string | Date): string {
   return dateFormatter.format(value instanceof Date ? value : new Date(value))
 }
@@ -31,6 +43,31 @@ export function formatTime(value: string | Date): string {
 export function formatLocalDateTime(value: Date): string {
   const pad = (part: number) => String(part).padStart(2, '0')
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
+}
+
+export function toDateInput(value: string): string {
+  return value.slice(0, 10)
+}
+
+export function fromDateInput(value: string): string {
+  return value.length === 10 ? `${value}T00:00:00` : value
+}
+
+/** FullCalendar treats all-day ends as exclusive, while the API stores the last inclusive day. */
+export function allDayEndExclusive(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  return formatLocalDate(new Date(year, month - 1, day + 1))
+}
+
+export function formatEventTime(event: { allDay: boolean; startTime: string }): string {
+  return event.allDay ? 'All day' : formatTime(event.startTime)
+}
+
+export function formatRecurrence(unit: keyof typeof recurrenceNames | null, interval: number | null): string {
+  if (!unit) return 'Does not repeat'
+  const count = interval ?? 1
+  const [singular, plural] = recurrenceNames[unit]
+  return count === 1 ? `Every ${singular}` : `Every ${count} ${plural}`
 }
 
 export function toDateTimeInput(value: string): string {

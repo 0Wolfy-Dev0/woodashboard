@@ -9,6 +9,7 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Users,
   X,
 } from 'lucide-react'
 import { api, SESSION_EXPIRED_EVENT } from './api'
@@ -16,16 +17,18 @@ import { EventFormModal } from './components/EventFormModal'
 import { LoginPage } from './components/LoginPage'
 import { TodoFormModal } from './components/TodoFormModal'
 import { Toasts } from './components/Toasts'
-import { clearSession, readSession, saveSession } from './session'
+import { useAutoRefresh } from './hooks/useAutoRefresh'
+import { clearSession, readSession, saveSession, SESSION_STORAGE_KEY } from './session'
 import { AdminPage } from './pages/AdminPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { GroupsPage } from './pages/GroupsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { TodosPage } from './pages/TodosPage'
-import type { EventItem, EventPayload, Page, Session, TodoItem, TodoPayload, ToastNotice, User } from './types'
+import type { EventItem, EventPayload, Group, Page, Session, TodoFolder, TodoItem, TodoPayload, ToastNotice, User } from './types'
 
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
 
-type EventDialog = { event?: EventItem; start?: Date } | null
+type EventDialog = { event?: EventItem; start?: Date; allDay?: boolean } | null
 type TodoDialog = { todo?: TodoItem } | null
 
 export default function App() {
@@ -36,6 +39,8 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [eventDialog, setEventDialog] = useState<EventDialog>(null)
   const [todoDialog, setTodoDialog] = useState<TodoDialog>(null)
+  const [groups, setGroups] = useState<Group[]>([])
+  const [folders, setFolders] = useState<TodoFolder[]>([])
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [notices, setNotices] = useState<ToastNotice[]>([])
 
@@ -44,6 +49,41 @@ export default function App() {
     setNotices((items) => [...items, { id, message, kind }].slice(-4))
     window.setTimeout(() => setNotices((items) => items.filter((item) => item.id !== id)), 4500)
   }, [])
+
+  const loadGroups = useCallback(async (silent = false) => {
+    if (!user) {
+      setGroups([])
+      return
+    }
+    try {
+      setGroups(await api.listGroups())
+    } catch (error) {
+      if (!silent) notify(error instanceof Error ? error.message : 'Could not load your groups.', 'error')
+    }
+  }, [user?.id, notify])
+
+  const loadFolders = useCallback(async (silent = false) => {
+    if (!user) {
+      setFolders([])
+      return
+    }
+    try {
+      setFolders(await api.listTodoFolders())
+    } catch (error) {
+      if (!silent) notify(error instanceof Error ? error.message : 'Could not load your todo folders.', 'error')
+    }
+  }, [user?.id, notify])
+
+  useEffect(() => {
+    void loadGroups()
+  }, [loadGroups])
+
+  useEffect(() => {
+    void loadFolders()
+  }, [loadFolders])
+
+  useAutoRefresh(() => loadGroups(true))
+  useAutoRefresh(() => loadFolders(true))
 
   useEffect(() => {
     const onSessionExpired = () => {
@@ -57,6 +97,36 @@ export default function App() {
     window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired)
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired)
   }, [notify])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_STORAGE_KEY && event.key !== null) return
+      const next = readSession()
+      if (!next) {
+        setSession(null)
+        setUser(null)
+        setPage('home')
+        setGroups([])
+        setFolders([])
+        setLoadingUser(false)
+        notify('You were signed out in another tab.', 'info')
+        return
+      }
+      if (next.userId === user?.id) {
+        // Another tab rotated the tokens for the same account; keep this tab's view.
+        setSession(next)
+        return
+      }
+      setSession(next)
+      setUser(null)
+      setPage('home')
+      setGroups([])
+      setFolders([])
+      setRefreshVersion((version) => version + 1)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [notify, user?.id])
 
   useEffect(() => {
     if (!session) {
@@ -77,11 +147,21 @@ export default function App() {
       .finally(() => { if (active) setLoadingUser(false) })
 
     return () => { active = false }
-  }, [session?.accessToken, notify])
+  }, [session?.userId, notify])
 
   function authenticated(tokens: Parameters<typeof saveSession>[0]) {
     setSession(saveSession(tokens))
     setPage('home')
+  }
+
+  function passwordChanged() {
+    clearSession()
+    setSession(null)
+    setUser(null)
+    setPage('home')
+    setGroups([])
+    setFolders([])
+    notify('Password updated. Please sign in again.', 'info')
   }
 
   async function signOut() {
@@ -102,7 +182,16 @@ export default function App() {
 
   async function saveEvent(payload: EventPayload) {
     if (eventDialog?.event) {
-      await api.updateEvent(eventDialog.event.id, payload)
+      await api.updateEvent(eventDialog.event.id, {
+        name: payload.name,
+        description: payload.description,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        allDay: payload.allDay,
+        recurrenceUnit: payload.recurrenceUnit,
+        recurrenceInterval: payload.recurrenceInterval,
+        recurrenceEnd: payload.recurrenceEnd,
+      })
       notify('Event updated.')
     } else {
       await api.createEvent(payload)
@@ -122,7 +211,13 @@ export default function App() {
 
   async function saveTodo(payload: TodoPayload) {
     if (todoDialog?.todo) {
-      await api.updateTodo(todoDialog.todo.id, payload)
+      const updatingOwnTodo = todoDialog.todo.userId === user?.id
+      await api.updateTodo(todoDialog.todo.id, {
+        name: payload.name,
+        description: payload.description,
+        completed: payload.completed,
+        ...(updatingOwnTodo ? { folderId: payload.folderId ?? null } : {}),
+      })
       notify('Task updated.')
     } else {
       await api.createTodo(payload)
@@ -156,6 +251,7 @@ export default function App() {
     home: 'Overview',
     calendar: 'Calendar',
     todos: 'To-do list',
+    groups: 'Groups',
     profile: 'Your profile',
     admin: 'Administration',
   }
@@ -164,6 +260,7 @@ export default function App() {
     { key: 'home' as const, label: 'Overview', icon: LayoutDashboard },
     { key: 'calendar' as const, label: 'Calendar', icon: CalendarDays },
     { key: 'todos' as const, label: 'To-do list', icon: CheckSquare },
+    { key: 'groups' as const, label: 'Groups', icon: Users },
   ]
 
   function navigate(next: Page) {
@@ -171,9 +268,11 @@ export default function App() {
     setMobileMenuOpen(false)
   }
 
-  const createButton = displayPage === 'todos'
-    ? <button className="button button-primary topbar-create" onClick={() => setTodoDialog({})}><Plus size={16} /><span>New task</span></button>
-    : <button className="button button-primary topbar-create" onClick={() => setEventDialog({ start: new Date() })}><Plus size={16} /><span>New event</span></button>
+  const createButton = displayPage === 'groups'
+    ? null
+    : displayPage === 'todos'
+      ? <button className="button button-primary topbar-create" onClick={() => setTodoDialog({})}><Plus size={16} /><span>New task</span></button>
+      : <button className="button button-primary topbar-create" onClick={() => setEventDialog({ start: new Date() })}><Plus size={16} /><span>New event</span></button>
 
   return (
     <div className="app-shell">
@@ -228,14 +327,15 @@ export default function App() {
         </header>
 
         {displayPage === 'home' && <DashboardPage user={user} refreshVersion={refreshVersion} onNavigate={navigate} onCreateEvent={() => setEventDialog({ start: new Date() })} onEditEvent={(event) => setEventDialog({ event })} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onNotice={notify} />}
-        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage refreshVersion={refreshVersion} onCreateEvent={(start) => setEventDialog({ start })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
-        {displayPage === 'todos' && <TodosPage user={user} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onNotice={notify} />}
-        {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onNotice={notify} />}
+        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} onCreateEvent={(start, allDay) => setEventDialog({ start, allDay })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
+        {displayPage === 'todos' && <TodosPage groups={groups} folders={folders} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onFoldersChanged={async () => { await loadFolders(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
+        {displayPage === 'groups' && <GroupsPage groups={groups} currentUser={user} onGroupsChanged={async () => { await loadGroups(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
+        {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onPasswordChanged={passwordChanged} onNotice={notify} />}
         {displayPage === 'admin' && <AdminPage currentUser={user} refreshVersion={refreshVersion} onDeleteUser={deleteUser} onNotice={notify} />}
       </main>
 
-      {eventDialog && <EventFormModal event={eventDialog.event} initialStart={eventDialog.start} onClose={() => setEventDialog(null)} onSave={saveEvent} onDelete={eventDialog.event ? deleteEvent : undefined} />}
-      {todoDialog && <TodoFormModal todo={todoDialog.todo} onClose={() => setTodoDialog(null)} onSave={saveTodo} onDelete={todoDialog.todo ? deleteTodo : undefined} />}
+      {eventDialog && <EventFormModal event={eventDialog.event} initialStart={eventDialog.start} initialAllDay={eventDialog.allDay} groups={groups} onClose={() => setEventDialog(null)} onSave={saveEvent} onDelete={eventDialog.event ? deleteEvent : undefined} />}
+      {todoDialog && <TodoFormModal todo={todoDialog.todo} groups={groups} folders={folders} currentUserId={user.id} onClose={() => setTodoDialog(null)} onSave={saveTodo} onDelete={todoDialog.todo ? deleteTodo : undefined} />}
       <Toasts notices={notices} onDismiss={(id) => setNotices((items) => items.filter((item) => item.id !== id))} />
     </div>
   )
