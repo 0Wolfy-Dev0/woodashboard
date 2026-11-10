@@ -22,6 +22,11 @@ account (with admin part), with token and refresh token maybe also
 - Password changes, plus admin password resets
 - Admin views for users, events, and todos
 
+# Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a short maintainability review and
+recommended next steps.
+
 # Frontend
 
 React + TypeScript with Vite. Includes the dashboard, calendar (all-day and recurring events),
