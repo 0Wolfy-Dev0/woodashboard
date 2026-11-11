@@ -77,11 +77,12 @@ All endpoints except register, login, and refresh require `Authorization: Bearer
 - PATCH     /api/me/password
 
 **Groups**
-- GET       /api/groups
+- GET       /api/groups?page=&size=
 - POST      /api/groups
 - GET       /api/groups/:id
 - PATCH     /api/groups/:id
 - DELETE    /api/groups/:id
+- GET       /api/groups/:id/members?page=&size=
 - POST      /api/groups/:id/members
 - DELETE    /api/groups/:id/members/:userId
 
@@ -123,7 +124,8 @@ the group. Personal items remain private.
 Removing a member revokes their access to the group's shared items, including items they authored.
 Deleting a group also deletes its shared events and todos. The `groupId` field is optional on event
 and todo creation; omitting it creates a personal item. Group descriptions are limited to 2,000
-characters.
+characters. Group lists and member lists are paginated; group responses include `memberCount`
+instead of expanding every member.
 
 ## Todo folders
 

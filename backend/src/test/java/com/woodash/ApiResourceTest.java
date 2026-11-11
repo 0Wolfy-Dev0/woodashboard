@@ -419,25 +419,45 @@ class ApiResourceTest {
                 .body("description", equalTo("Shared plans"))
                 .body("ownerId", equalTo(owner.id()))
                 .body("ownerLogin", equalTo(owner.login()))
-                .body("members.size()", equalTo(1))
-                .body("members[0].login", equalTo(owner.login()))
+                .body("memberCount", equalTo(1))
                 .body("creationTime", notNullValue())
                 .body("lastModificationTime", notNullValue());
         String groupId = createGroup.path("id");
 
         given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/groups")
-                .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(groupId));
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("items[0].id", equalTo(groupId))
+                .body("total", equalTo(1));
         given().auth().oauth2(outsiderTokens.accessToken()).when().get("/api/groups")
-                .then().statusCode(200).body("id", not(hasItem(groupId)));
+                .then().statusCode(200).body("items.id", not(hasItem(groupId)));
+        given().auth().oauth2(ownerTokens.accessToken()).queryParam("page", -1)
+                .when().get("/api/groups")
+                .then().statusCode(400).body("message", notNullValue());
         given().auth().oauth2(outsiderTokens.accessToken()).when().get("/api/groups/{id}", groupId)
                 .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
 
         given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
                 .body(Map.of("login", member.login()))
                 .when().post("/api/groups/{id}/members", groupId)
+                .then().statusCode(200).body("memberCount", equalTo(2));
+        given().auth().oauth2(ownerTokens.accessToken())
+                .queryParam("page", 0).queryParam("size", 1)
+                .when().get("/api/groups/{id}/members", groupId)
                 .then().statusCode(200)
-                .body("members.size()", equalTo(2))
-                .body("members.login", hasItems(owner.login(), member.login()));
+                .body("items.size()", equalTo(1))
+                .body("total", equalTo(2))
+                .body("totalPages", equalTo(2));
+        given().auth().oauth2(ownerTokens.accessToken())
+                .queryParam("page", 1).queryParam("size", 1)
+                .when().get("/api/groups/{id}/members", groupId)
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("total", equalTo(2));
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}/members", groupId)
+                .then().statusCode(200).body("items.login", hasItems(owner.login(), member.login()));
+        given().auth().oauth2(outsiderTokens.accessToken()).when().get("/api/groups/{id}/members", groupId)
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
         given().auth().oauth2(ownerTokens.accessToken()).contentType(ContentType.JSON)
                 .body(Map.of("login", member.login()))
                 .when().post("/api/groups/{id}/members", groupId)
@@ -448,7 +468,7 @@ class ApiResourceTest {
                 .then().statusCode(404).body("message", equalTo("Resource not found"));
 
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
-                .then().statusCode(200).body("members.size()", equalTo(2));
+                .then().statusCode(200).body("memberCount", equalTo(2));
         given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
                 .body(Map.of("name", "Renamed"))
                 .when().patch("/api/groups/{id}", groupId)
@@ -508,6 +528,13 @@ class ApiResourceTest {
                 .then().statusCode(204);
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
                 .then().statusCode(403);
+        given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}/members", groupId)
+                .then().statusCode(403);
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/groups/{id}/members", groupId)
+                .then().statusCode(200)
+                .body("total", equalTo(1))
+                .body("items.login", hasItem(owner.login()))
+                .body("items.login", not(hasItem(member.login())));
         // Leaving the group must also hide the shared todos the member authored there.
         // The by-user route is admin-only, so the removed member cannot use it either.
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/todos/{userId}", member.id())

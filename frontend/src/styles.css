@@ -321,8 +321,8 @@ a { color: inherit; }
 .status-pill { min-height: 20px; padding: 0 7px; display: inline-flex; align-items: center; border-radius: 10px; font-size: 8px; font-weight: 700; }
 .status-open { color: #8a764e; background: #f6f1e5; }
 .status-done { color: #52765a; background: #edf4ed; }
-.admin-pagination { min-height: 48px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #edf0eb; color: #8b978e; font-size: 9px; }
-.admin-pagination > span { flex: 1; text-align: center; }
+.pagination-bar { min-height: 48px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #edf0eb; color: #8b978e; font-size: 9px; }
+.pagination-bar > span { flex: 1; text-align: center; }
 .admin-empty { padding: 31px 20px; color: #98a198; text-align: center; font-size: 10px; }
 .admin-loading { min-height: 230px; display: flex; justify-content: center; align-items: center; gap: 9px; color: #8b978e; font-size: 10px; }
 
@@ -482,6 +482,7 @@ a { color: inherit; }
 .group-add-member .button { min-height: 27px; padding: 0 8px; font-size: 9px; }
 .group-member-error { margin: 0 0 8px; }
 .group-members { display: grid; }
+.group-members-loading { min-height: 80px; }
 .group-member-row { min-height: 53px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f0f2ee; }
 .group-member-row:last-child { border-bottom: 0; }
 .group-member-avatar { width: 30px; height: 30px; border-radius: 9px; font-size: 11px; }
@@ -629,8 +630,8 @@ a { color: inherit; }
   .data-table th:first-child, .data-table td:first-child { padding-left: 12px; }
   .data-table th:last-child, .data-table td:last-child { padding-right: 12px; }
   .data-table th, .data-table td { padding-left: 9px; padding-right: 9px; }
-  .admin-pagination { flex-wrap: wrap; padding: 8px 12px; }
-  .admin-pagination > span { order: -1; flex-basis: 100%; }
+  .pagination-bar { flex-wrap: wrap; padding: 8px 12px; }
+  .pagination-bar > span { order: -1; flex-basis: 100%; }
   .auth-screen { display: flex; flex-direction: column; }
   .auth-story { min-height: 250px; padding: 22px 21px 18px; }
   .auth-brand .brand-mark { width: 30px; height: 30px; }

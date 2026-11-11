@@ -70,7 +70,13 @@ export default function App() {
       return
     }
     try {
-      setGroups(await api.listGroups())
+      const first = await api.listGroups({ page: 0, size: 100 })
+      const all = [...first.items]
+      for (let page = 1; page < first.totalPages; page += 1) {
+        const next = await api.listGroups({ page, size: 100 })
+        all.push(...next.items)
+      }
+      setGroups(all)
     } catch (error) {
       if (!silent) notify(error instanceof Error ? error.message : 'Could not load your groups.', 'error')
     }

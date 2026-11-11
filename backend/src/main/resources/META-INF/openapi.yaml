@@ -9,7 +9,7 @@ info:
     token is stored server side. Refresh tokens are rotated on every use.
 
     **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
-  version: 1.5.0
+  version: 1.6.0
 servers:
   - url: /
     description: Same origin (port 8081 locally; reverse proxy in deployments)
@@ -539,17 +539,20 @@ paths:
   /api/groups:
     get:
       tags: [Groups]
-      summary: List groups of the authenticated user
+      summary: List groups of the authenticated user (paginated)
       operationId: listGroups
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
-          description: Groups the user belongs to
+          description: One page of groups the user belongs to
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/GroupResponse'
+                $ref: '#/components/schemas/GroupPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
     post:
@@ -681,6 +684,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorInfo'
+
+  /api/groups/{id}/members:
+    get:
+      tags: [Groups]
+      summary: List group members (paginated)
+      description: Members and admins can list the members of a group.
+      operationId: listGroupMembers
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: One page of group members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/groups/{id}/members/{userId}:
     delete:
@@ -1068,7 +1097,7 @@ components:
 
     GroupResponse:
       type: object
-      required: [id, name, ownerId, ownerLogin, members, creationTime, lastModificationTime]
+      required: [id, name, ownerId, ownerLogin, memberCount, creationTime, lastModificationTime]
       properties:
         id:
           type: string
@@ -1083,10 +1112,9 @@ components:
           format: uuid
         ownerLogin:
           type: string
-        members:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserResponse'
+        memberCount:
+          type: integer
+          format: int64
         creationTime:
           type: string
           format: date-time
@@ -1400,3 +1428,14 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/TodoResponse'
+
+    GroupPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMetadata'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/GroupResponse'

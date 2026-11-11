@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   Crown,
   LoaderCircle,
@@ -12,8 +12,12 @@ import {
 } from 'lucide-react'
 import { api } from '../api'
 import { GroupFormModal } from '../components/GroupFormModal'
+import { Pagination } from '../components/Pagination'
 import { formatDate } from '../format'
-import type { Group, GroupPayload, ToastNotice, User } from '../types'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
+import type { Group, GroupPayload, PageResult, ToastNotice, User } from '../types'
+
+const MEMBER_PAGE_SIZE = 25
 
 interface GroupsPageProps {
   groups: Group[]
@@ -24,6 +28,9 @@ interface GroupsPageProps {
 
 export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: GroupsPageProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [members, setMembers] = useState<PageResult<User> | null>(null)
+  const [memberPage, setMemberPage] = useState(0)
+  const [loadingMembers, setLoadingMembers] = useState(false)
   const [dialog, setDialog] = useState<{ group?: Group } | null>(null)
   const [memberLogin, setMemberLogin] = useState('')
   const [memberError, setMemberError] = useState('')
@@ -38,8 +45,35 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
   useEffect(() => {
     if (!groups.some((group) => group.id === selectedId)) {
       setSelectedId(groups[0]?.id ?? null)
+      setMemberPage(0)
     }
   }, [groups, selectedId])
+
+  const loadMembers = useCallback(async (background = false) => {
+    if (!selectedGroup) {
+      setMembers(null)
+      return
+    }
+    if (!background) {
+      setLoadingMembers(true)
+      setMembers(null)
+    }
+    try {
+      setMembers(await api.listGroupMembers(selectedGroup.id, { page: memberPage, size: MEMBER_PAGE_SIZE }))
+    } catch (error) {
+      if (!background) onNotice(error instanceof Error ? error.message : 'Could not load group members.', 'error')
+    } finally {
+      if (!background) setLoadingMembers(false)
+    }
+  }, [memberPage, onNotice, selectedGroup?.id])
+
+  useEffect(() => {
+    void loadMembers()
+  }, [loadMembers, selectedGroup?.memberCount])
+
+  useAutoRefresh(() => loadMembers(true))
+
+  const memberItems = members?.items ?? []
 
   const canManage = selectedGroup
     ? currentUser.role === 'ADMIN' || selectedGroup.ownerId === currentUser.id
@@ -77,6 +111,7 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
     try {
       await api.addGroupMember(selectedGroup.id, memberLogin.trim())
       setMemberLogin('')
+      setMemberPage(0)
       await onGroupsChanged()
       onNotice('Member added to the group.')
     } catch (error) {
@@ -93,6 +128,7 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
     setRemovingId(member.id)
     try {
       await api.removeGroupMember(selectedGroup.id, member.id)
+      setMemberPage(0)
       if (isSelf) setSelectedId(null)
       await onGroupsChanged()
       onNotice(isSelf ? `You left ${selectedGroup.name}.` : `${member.login} was removed.`, 'info')
@@ -134,12 +170,15 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
                 <button
                   className={`group-list-item${selectedGroup?.id === group.id ? ' active' : ''}`}
                   key={group.id}
-                  onClick={() => setSelectedId(group.id)}
+                  onClick={() => {
+                    setSelectedId(group.id)
+                    setMemberPage(0)
+                  }}
                 >
                   <span className="group-avatar">{group.name.slice(0, 1).toUpperCase()}</span>
                   <span className="group-list-copy">
                     <strong>{group.name}</strong>
-                    <small>{group.members.length} {group.members.length === 1 ? 'member' : 'members'} · {group.ownerLogin}</small>
+                    <small>{group.memberCount} {group.memberCount === 1 ? 'member' : 'members'} · {group.ownerLogin}</small>
                   </span>
                   <span className="group-list-arrow">›</span>
                 </button>
@@ -172,7 +211,7 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
               </div>
 
               <div className="group-members-heading">
-                <div><span className="eyebrow">THE PEOPLE IN THIS SPACE</span><h3>{selectedGroup.members.length} {selectedGroup.members.length === 1 ? 'member' : 'members'}</h3></div>
+                <div><span className="eyebrow">THE PEOPLE IN THIS SPACE</span><h3>{selectedGroup.memberCount} {selectedGroup.memberCount === 1 ? 'member' : 'members'}</h3></div>
                 {canManage && (
                   <form className="group-add-member" onSubmit={addMember}>
                     <UserPlus size={15} />
@@ -185,26 +224,32 @@ export function GroupsPage({ groups, currentUser, onGroupsChanged, onNotice }: G
               </div>
               {memberError && <p className="form-error group-member-error" role="alert">{memberError}</p>}
 
-              <div className="group-members">
-                {selectedGroup.members.map((member) => {
-                  const isOwner = member.id === selectedGroup.ownerId
-                  const isSelf = member.id === currentUser.id
-                  const canRemove = !isOwner && (canManage || isSelf)
-                  return (
-                    <div className="group-member-row" key={member.id}>
-                      <span className="group-member-avatar">{member.login.slice(0, 1).toUpperCase()}</span>
-                      <span className="group-member-copy"><strong>{member.login}{isSelf && <small className="you-label">YOU</small>}</strong><small>{isOwner ? 'Group owner' : member.role === 'ADMIN' ? 'Administrator' : 'Member'}</small></span>
-                      {isOwner && <span className="group-owner-badge"><Crown size={12} /> Owner</span>}
-                      {canRemove && (
-                        <button className="button button-danger-quiet button-small group-member-remove" onClick={() => void removeMember(member)} disabled={removingId === member.id}>
-                          {removingId === member.id ? <LoaderCircle className="spin" size={14} /> : isSelf ? <LogOut size={14} /> : <Trash2 size={14} />}
-                          {isSelf ? 'Leave' : 'Remove'}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              {loadingMembers ? (
+                <div className="admin-loading group-members-loading"><LoaderCircle className="spin" size={16} /> Loading members…</div>
+              ) : (
+                <div className="group-members">
+                  {memberItems.map((member) => {
+                    const isOwner = member.id === selectedGroup.ownerId
+                    const isSelf = member.id === currentUser.id
+                    const canRemove = !isOwner && (canManage || isSelf)
+                    return (
+                      <div className="group-member-row" key={member.id}>
+                        <span className="group-member-avatar">{member.login.slice(0, 1).toUpperCase()}</span>
+                        <span className="group-member-copy"><strong>{member.login}{isSelf && <small className="you-label">YOU</small>}</strong><small>{isOwner ? 'Group owner' : member.role === 'ADMIN' ? 'Administrator' : 'Member'}</small></span>
+                        {isOwner && <span className="group-owner-badge"><Crown size={12} /> Owner</span>}
+                        {canRemove && (
+                          <button className="button button-danger-quiet button-small group-member-remove" onClick={() => void removeMember(member)} disabled={removingId === member.id}>
+                            {removingId === member.id ? <LoaderCircle className="spin" size={14} /> : isSelf ? <LogOut size={14} /> : <Trash2 size={14} />}
+                            {isSelf ? 'Leave' : 'Remove'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {!loadingMembers && memberItems.length === 0 && <div className="admin-empty">No members in this group.</div>}
+              <Pagination data={members} onPageChange={setMemberPage} label="Members" />
 
               <div className="group-detail-footer"><Sparkles size={15} /> Shared events and tasks appear in your calendar and task list.</div>
             </section>

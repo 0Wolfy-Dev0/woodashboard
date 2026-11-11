@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CalendarDays, CheckSquare, KeyRound, LoaderCircle, Search, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { api } from '../api'
+import { Pagination } from '../components/Pagination'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
 import { formatDate, formatEventTime, formatRecurrence, formatTime } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
@@ -160,17 +161,6 @@ export function AdminPage({ currentUser, refreshVersion, onDeleteUser, onNotice 
       {resetUser && (
         <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} onSave={resetPassword} />
       )}
-    </div>
-  )
-}
-
-function Pagination<T>({ data, onPageChange }: { data: PageResult<T> | null; onPageChange: (page: number) => void }) {
-  if (!data || data.total === 0) return null
-  return (
-    <div className="admin-pagination">
-      <button className="button button-secondary button-small" type="button" disabled={data.page <= 0} onClick={() => onPageChange(data.page - 1)}>Previous</button>
-      <span>Page {data.page + 1} of {data.totalPages} · {data.total} total</span>
-      <button className="button button-secondary button-small" type="button" disabled={data.page + 1 >= data.totalPages} onClick={() => onPageChange(data.page + 1)}>Next</button>
     </div>
   )
 }

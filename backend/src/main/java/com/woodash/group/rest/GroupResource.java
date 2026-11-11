@@ -1,25 +1,29 @@
 package com.woodash.group.rest;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
+import com.woodash.common.PageRequest;
+import com.woodash.common.PageResponse;
 import com.woodash.group.rest.dto.GroupCreateRequest;
 import com.woodash.group.rest.dto.GroupMemberRequest;
 import com.woodash.group.rest.dto.GroupResponse;
 import com.woodash.group.rest.dto.GroupUpdateRequest;
 import com.woodash.group.service.GroupService;
+import com.woodash.user.rest.dto.UserResponse;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -34,8 +38,17 @@ public class GroupResource {
     CurrentUser currentUser;
 
     @GET
-    public List<GroupResponse> list() {
-        return groupService.listForUser(currentUser);
+    public PageResponse<GroupResponse> list(@QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("25") int size) {
+        return groupService.listForUser(currentUser, PageRequest.of(page, size));
+    }
+
+    @GET
+    @Path("/{id}/members")
+    public PageResponse<UserResponse> listMembers(@PathParam("id") UUID id,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("25") int size) {
+        return groupService.listMembers(id, PageRequest.of(page, size), currentUser);
     }
 
     @POST

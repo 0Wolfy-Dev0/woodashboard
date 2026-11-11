@@ -1,10 +1,11 @@
 package com.woodash.group.service;
 
-import java.util.List;
 import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
 import com.woodash.common.ErrorCode;
+import com.woodash.common.PageRequest;
+import com.woodash.common.PageResponse;
 import com.woodash.group.entity.Group;
 import com.woodash.group.entity.GroupMember;
 import com.woodash.group.repository.GroupMemberRepository;
@@ -15,6 +16,7 @@ import com.woodash.group.rest.dto.GroupResponse;
 import com.woodash.group.rest.dto.GroupUpdateRequest;
 import com.woodash.user.entity.User;
 import com.woodash.user.repository.UserRepository;
+import com.woodash.user.rest.dto.UserResponse;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -38,10 +40,14 @@ public class GroupService {
     GroupAccessService groupAccessService;
 
     @Transactional
-    public List<GroupResponse> listForUser(CurrentUser currentUser) {
-        return groupRepository.listForUser(currentUser.getUserId()).stream()
-                .map(GroupResponse::from)
-                .toList();
+    public PageResponse<GroupResponse> listForUser(CurrentUser currentUser, PageRequest page) {
+        return groupRepository.listForUserPage(currentUser.getUserId(), page).map(GroupResponse::from);
+    }
+
+    @Transactional
+    public PageResponse<UserResponse> listMembers(UUID id, PageRequest page, CurrentUser currentUser) {
+        groupAccessService.requireVisibleGroup(id, currentUser);
+        return groupMemberRepository.listForGroupPage(id, page).map(member -> toUserResponse(member.getUser()));
     }
 
     @Transactional
@@ -151,5 +157,10 @@ public class GroupService {
         if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             ErrorCode.INVALID_REQUEST_BODY.throwException();
         }
+    }
+
+    private UserResponse toUserResponse(User user) {
+        return new UserResponse(user.getId(), user.getLogin(), user.getRole(), user.getCreationTime(),
+                user.getLastModificationTime());
     }
 }

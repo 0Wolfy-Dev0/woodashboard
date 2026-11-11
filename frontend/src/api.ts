@@ -173,7 +173,11 @@ export const api = {
   deleteTodoFolder: (id: string) =>
     request<void>(`/todo-folders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  listGroups: () => request<Group[]>('/groups'),
+  listGroups: (params: { page?: number; size?: number } = {}) =>
+    request<PageResult<Group>>(`/groups${queryString(params)}`),
+
+  listGroupMembers: (id: string, params: { page?: number; size?: number } = {}) =>
+    request<PageResult<User>>(`/groups/${encodeURIComponent(id)}/members${queryString(params)}`),
 
   createGroup: (payload: GroupPayload) =>
     request<Group>('/groups', { method: 'POST', body: JSON.stringify(payload) }),

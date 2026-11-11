@@ -28,6 +28,7 @@ Browser
 - Integration tests cover the main user flows.
 - CI builds the API with tests and builds the frontend on PRs, `main`, and tags.
 - Admin lists are paginated with server-side search and event date filters.
+- Group lists and group members are paginated; group responses no longer expand every member.
 
 ## Main maintainability risks
 
@@ -36,7 +37,6 @@ Browser
 | Hand-maintained OpenAPI | Contract will drift from code | Generate it, or add a schema drift test |
 | `App.tsx` owns too much | Session, dialogs, data, and navigation in one file | Extract `useSession` and workspace-data hooks |
 | One large integration test class | Shared database makes tests stateful and slower | Split by domain and use Testcontainers |
-| Unbounded group/member lists | Group lists still expand every member | Paginate group and member lists |
 | Hand-rolled JWT | Security-sensitive code needs ongoing review | Consider Quarkus JWT support when convenient |
 | No API healthcheck | Compose cannot tell whether the API is ready | Add an internal health endpoint and healthcheck |
 
@@ -44,10 +44,9 @@ Browser
 
 1. Add Testcontainers for backend tests.
 2. Split tests by domain.
-3. Add pagination to group and member lists.
-4. Extract frontend session logic from `App.tsx`.
-5. Move to a standard JWT library, optional.
-6. Add TLS and deployment hardening when needed.
+3. Extract frontend session logic from `App.tsx`.
+4. Move to a standard JWT library, optional.
+5. Add TLS and deployment hardening when needed.
 
 ## Do not add
 

@@ -34,7 +34,7 @@ export interface Group {
   description: string | null
   ownerId: string
   ownerLogin: string
-  members: User[]
+  memberCount: number
   creationTime: string
   lastModificationTime: string
 }
