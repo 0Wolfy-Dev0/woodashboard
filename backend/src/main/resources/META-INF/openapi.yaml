@@ -9,7 +9,7 @@ info:
     token is stored server side. Refresh tokens are rotated on every use.
 
     **Dates**: `LocalDateTime` fields are ISO-8601 without timezone (e.g. `2026-10-09T14:30:00`).
-  version: 1.3.0
+  version: 1.4.0
 servers:
   - url: /
     description: Same origin (port 8081 locally; reverse proxy in deployments)
@@ -271,10 +271,11 @@ paths:
   /api/todos/{userId}:
     get:
       tags: [Todos]
-      summary: List the todos of a user
+      summary: List all todos of a user (ADMIN only)
       description: |
-        A `USER` can only list their own todos, and only personal todos or shared todos in
-        groups they currently belong to. An `ADMIN` can list every row belonging to anyone.
+        `ADMIN` only. Lists every todo belonging to the user, including group-shared rows.
+        Normal users must use `GET /api/todos`, which is scoped to their personal todos and
+        the groups they currently belong to.
       operationId: listTodosByUser
       parameters:
         - $ref: '#/components/parameters/UserId'

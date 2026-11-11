@@ -51,20 +51,14 @@ public class TodoService {
     }
 
     public List<TodoResponse> listByUser(UUID userId, Boolean completed, CurrentUser currentUser) {
+        // Admin-only introspection. Normal clients use GET /api/todos, which is scoped
+        // to the caller's personal rows and current group memberships.
+        currentUser.requireAdmin();
         if (userRepository.findByIdOptional(userId).isEmpty()) {
             ErrorCode.NOT_FOUND.throwException();
         }
-        currentUser.requireOwnerOrAdmin(userId);
-        // Admins may inspect every row of a user, including rows still attached to a
-        // group. Everyone else must go through the membership-scoped query so that
-        // leaving a group also removes access to the rows they authored there.
-        List<Todo> todos;
-        if (currentUser.isAdmin()) {
-            todos = completed == null ? todoRepository.listByUser(userId)
-                    : todoRepository.listByUserAndCompleted(userId, completed);
-        } else {
-            todos = todoRepository.listAccessible(userId, completed, null, null);
-        }
+        List<Todo> todos = completed == null ? todoRepository.listByUser(userId)
+                : todoRepository.listByUserAndCompleted(userId, completed);
         return todos.stream().map(TodoResponse::from).toList();
     }
 

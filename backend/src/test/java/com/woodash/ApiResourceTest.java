@@ -156,13 +156,13 @@ class ApiResourceTest {
                 .when().post("/api/todos")
                 .then().statusCode(201).body("completed", equalTo(true)).extract().path("id");
 
-        given().auth().oauth2(tokens.accessToken()).when().get("/api/todos/{userId}", user.id())
+        given().auth().oauth2(tokens.accessToken()).when().get("/api/todos")
                 .then().statusCode(200).body("size()", equalTo(2)).body("id", hasItems(openTodoId, completedTodoId));
         given().auth().oauth2(tokens.accessToken()).queryParam("completed", false)
-                .when().get("/api/todos/{userId}", user.id())
+                .when().get("/api/todos")
                 .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(openTodoId));
         given().auth().oauth2(tokens.accessToken()).queryParam("completed", true)
-                .when().get("/api/todos/{userId}", user.id())
+                .when().get("/api/todos")
                 .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(completedTodoId));
 
         given().auth().oauth2(tokens.accessToken()).contentType(ContentType.JSON)
@@ -197,7 +197,7 @@ class ApiResourceTest {
                 .then().statusCode(204).body(equalTo(""));
         given().auth().oauth2(tokens.accessToken()).when().delete("/api/todos/{id}", completedTodoId)
                 .then().statusCode(204);
-        given().auth().oauth2(tokens.accessToken()).when().get("/api/todos/{userId}", user.id())
+        given().auth().oauth2(tokens.accessToken()).when().get("/api/todos")
                 .then().statusCode(200).body("size()", equalTo(0));
         given().auth().oauth2(tokens.accessToken()).when().delete("/api/todos/{id}", UUID.randomUUID())
                 .then().statusCode(404).body("message", equalTo("Resource not found"));
@@ -213,6 +213,8 @@ class ApiResourceTest {
                 .body(Map.of("name", "Private task"))
                 .when().post("/api/todos").then().statusCode(201).extract().path("id");
 
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/todos/{userId}", owner.id())
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
         given().auth().oauth2(otherTokens.accessToken()).when().get("/api/todos/{userId}", owner.id())
                 .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
         given().auth().oauth2(otherTokens.accessToken()).contentType(ContentType.JSON)
@@ -220,8 +222,6 @@ class ApiResourceTest {
                 .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
         given().auth().oauth2(otherTokens.accessToken()).when().delete("/api/todos/{id}", todoId)
                 .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
-        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/todos/{userId}", UUID.randomUUID())
-                .then().statusCode(404).body("message", equalTo("Resource not found"));
     }
 
     @Test
@@ -478,8 +478,9 @@ class ApiResourceTest {
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/groups/{id}", groupId)
                 .then().statusCode(403);
         // Leaving the group must also hide the shared todos the member authored there.
+        // The by-user route is admin-only, so the removed member cannot use it either.
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/todos/{userId}", member.id())
-                .then().statusCode(200).body("id", not(hasItem(todoId)));
+                .then().statusCode(403).body("message", equalTo("You are not allowed to access this resource"));
         given().auth().oauth2(memberTokens.accessToken()).when().get("/api/todos")
                 .then().statusCode(200).body("id", not(hasItem(todoId)));
         given().auth().oauth2(memberTokens.accessToken()).contentType(ContentType.JSON)
@@ -581,7 +582,7 @@ class ApiResourceTest {
 
         given().auth().oauth2(ownerTokens.accessToken()).when().delete("/api/todo-folders/{id}", homeFolderId)
                 .then().statusCode(204).body(equalTo(""));
-        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/todos/{userId}", owner.id())
+        given().auth().oauth2(ownerTokens.accessToken()).when().get("/api/todos")
                 .then().statusCode(200)
                 .body("size()", equalTo(2))
                 .body("findAll { it.id == '%s' }.folderId".formatted(filedTodoId), hasItem(nullValue()));

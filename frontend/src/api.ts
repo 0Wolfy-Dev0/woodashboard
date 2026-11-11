@@ -212,11 +212,6 @@ export const api = {
   deleteEvent: (id: string) =>
     request<void>(`/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  listTodos: (userId: string, completed?: boolean) =>
-    request<TodoItem[]>(
-      `/todos/${encodeURIComponent(userId)}${queryString({ completed })}`,
-    ),
-
   listAccessibleTodos: (completed?: boolean, groupId?: string, folderId?: string) =>
     request<TodoItem[]>(`/todos${queryString({ completed, groupId, folderId })}`),
 

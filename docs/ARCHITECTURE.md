@@ -35,7 +35,6 @@ Browser
 | Hand-maintained OpenAPI | Contract will drift from code | Generate it, or add a schema drift test |
 | `App.tsx` owns too much | Session, dialogs, data, and navigation in one file | Extract `useSession` and workspace-data hooks |
 | One large integration test class | Shared database makes tests stateful and slower | Split by domain and use Testcontainers |
-| Unused `GET /api/todos/{userId}` | Duplicate access-control path; already caused a bug | Remove it or make it admin-only |
 | Unbounded list endpoints | Admin, group, and member lists grow without limit | Add pagination |
 | Hand-rolled JWT | Security-sensitive code needs ongoing review | Consider Quarkus JWT support when convenient |
 | No API healthcheck | Compose cannot tell whether the API is ready | Add an internal health endpoint and healthcheck |
@@ -44,11 +43,10 @@ Browser
 
 1. Add CI and Testcontainers.
 2. Split tests by domain.
-3. Remove or restrict `/api/todos/{userId}`.
-4. Add pagination to admin and group lists.
-5. Extract frontend session logic from `App.tsx`.
-6. Move to a standard JWT library, optional.
-7. Add TLS and deployment hardening when needed.
+3. Add pagination to admin and group lists.
+4. Extract frontend session logic from `App.tsx`.
+5. Move to a standard JWT library, optional.
+6. Add TLS and deployment hardening when needed.
 
 ## Do not add
 

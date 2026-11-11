@@ -92,7 +92,7 @@ All endpoints except register, login, and refresh require `Authorization: Bearer
 
 **Todos**
 - GET       /api/todos?completed=&groupId=&folderId=
-- GET       /api/todos/:user_id
+- GET       /api/todos/:user_id  (ADMIN only)
 - POST      /api/todos
 - PATCH     /api/todos/:id
 - DELETE    /api/todos/:id
