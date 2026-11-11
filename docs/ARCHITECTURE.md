@@ -26,12 +26,12 @@ Browser
 - One frontend API client. Auth and refresh logic are centralized.
 - Small stack with few moving parts. Easy to run and debug.
 - Integration tests cover the main user flows.
+- CI builds the API with tests and builds the frontend on PRs, `main`, and tags.
 
 ## Main maintainability risks
 
 | Risk | Why it matters | Suggested fix |
 |---|---|---|
-| No CI | Tests and build run only when remembered | Add a workflow for backend tests, frontend build, and Compose config |
 | Hand-maintained OpenAPI | Contract will drift from code | Generate it, or add a schema drift test |
 | `App.tsx` owns too much | Session, dialogs, data, and navigation in one file | Extract `useSession` and workspace-data hooks |
 | One large integration test class | Shared database makes tests stateful and slower | Split by domain and use Testcontainers |
@@ -41,7 +41,7 @@ Browser
 
 ## Suggested order
 
-1. Add CI and Testcontainers.
+1. Add Testcontainers for backend tests.
 2. Split tests by domain.
 3. Add pagination to admin and group lists.
 4. Extract frontend session logic from `App.tsx`.
