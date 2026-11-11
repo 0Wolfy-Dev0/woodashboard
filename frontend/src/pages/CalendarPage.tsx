@@ -4,7 +4,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin, { type DateClickArg } from '@fullcalendar/interaction'
-import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { CalendarDays, CalendarPlus, Clock3, LoaderCircle, Maximize2, Minimize2, RefreshCw, Sparkles } from 'lucide-react'
 import { api } from '../api'
 import { allDayEndExclusive, formatDate, formatEventTime, formatLocalDateTime, relativeDayLabel } from '../format'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
@@ -13,6 +13,8 @@ import type { EventItem, Group, ToastNotice } from '../types'
 interface CalendarPageProps {
   groups: Group[]
   refreshVersion: number
+  focusMode: boolean
+  onToggleFocus: () => void
   onCreateEvent: (start: Date, allDay: boolean) => void
   onEditEvent: (event: EventItem) => void
   onNotice: (message: string, kind?: ToastNotice['kind']) => void
@@ -23,7 +25,7 @@ interface DateRange {
   end: Date
 }
 
-export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
+export function CalendarPage({ groups, refreshVersion, focusMode, onToggleFocus, onCreateEvent, onEditEvent, onNotice }: CalendarPageProps) {
   const [events, setEvents] = useState<EventItem[]>([])
   const [groupId, setGroupId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -104,6 +106,10 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
           <div className="calendar-legend">
             <span className="calendar-legend-dot" /> Your events
             <span className="calendar-filter-note"><Sparkles size={13} /> Events are filtered to the visible date range.</span>
+            <button className="calendar-focus-toggle" type="button" onClick={onToggleFocus} title={focusMode ? 'Exit full page' : 'Show calendar full page'}>
+              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <span>{focusMode ? 'Exit full page' : 'Full page'}</span>
+            </button>
           </div>
           {error && <div className="inline-error" role="alert">{error}</div>}
           <div className="full-calendar-wrap">
@@ -122,8 +128,9 @@ export function CalendarPage({ groups, refreshVersion, onCreateEvent, onEditEven
                 const event = info.event.extendedProps.event as EventItem | undefined
                 if (event) onEditEvent(event)
               }}
-              height="auto"
-              dayMaxEvents={3}
+              height={focusMode ? '100%' : 'auto'}
+              expandRows={focusMode}
+              dayMaxEvents={focusMode ? false : 3}
               nowIndicator
               firstDay={1}
               eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}

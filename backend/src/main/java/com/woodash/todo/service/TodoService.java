@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
 import com.woodash.common.ErrorCode;
+import com.woodash.common.PageRequest;
+import com.woodash.common.PageResponse;
 import com.woodash.group.entity.Group;
 import com.woodash.group.service.GroupAccessService;
 import com.woodash.todo.entity.Todo;
@@ -125,8 +127,9 @@ public class TodoService {
         todoRepository.delete(todo);
     }
 
-    public List<TodoResponse> listAll() {
-        return todoRepository.listAllOrdered().stream().map(TodoResponse::from).toList();
+    @Transactional
+    public PageResponse<TodoResponse> listAllPage(String search, PageRequest page) {
+        return todoRepository.searchAllPage(search, page).map(TodoResponse::from);
     }
 
     private void validateName(String name) {

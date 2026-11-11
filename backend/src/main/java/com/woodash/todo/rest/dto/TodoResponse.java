@@ -19,6 +19,7 @@ public class TodoResponse {
     private String name;
     private String description;
     private UUID userId;
+    private String userLogin;
     private UUID groupId;
     private UUID folderId;
     private boolean completed;
@@ -29,6 +30,7 @@ public class TodoResponse {
         UUID groupId = todo.getSharedGroup() == null ? null : todo.getSharedGroup().getId();
         UUID folderId = todo.getFolder() == null ? null : todo.getFolder().getId();
         return new TodoResponse(todo.getId(), todo.getName(), todo.getDescription(), todo.getUser().getId(),
-                groupId, folderId, todo.isCompleted(), todo.getCreationTime(), todo.getLastModificationTime());
+                todo.getUser().getLogin(), groupId, folderId, todo.isCompleted(), todo.getCreationTime(),
+                todo.getLastModificationTime());
     }
 }

@@ -1,11 +1,12 @@
 package com.woodash.user.service;
 
 import java.util.Optional;
-import java.util.List;
 import java.util.UUID;
 
 import com.woodash.auth.repository.RefreshTokenRepository;
 import com.woodash.common.ErrorCode;
+import com.woodash.common.PageRequest;
+import com.woodash.common.PageResponse;
 import com.woodash.user.entity.User;
 import com.woodash.user.repository.UserRepository;
 import com.woodash.user.rest.dto.ChangePasswordRequest;
@@ -44,8 +45,8 @@ public class UserService {
         return userRepository.findByIdOptional(id);
     }
 
-    public List<User> listAll() {
-        return userRepository.listAll();
+    public PageResponse<User> listPage(String search, PageRequest page) {
+        return userRepository.searchPage(search, page);
     }
 
     @Transactional

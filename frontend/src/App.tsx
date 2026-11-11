@@ -6,6 +6,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -31,11 +33,23 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => 
 type EventDialog = { event?: EventItem; start?: Date; allDay?: boolean } | null
 type TodoDialog = { todo?: TodoItem } | null
 
+const SIDEBAR_COLLAPSED_KEY = 'woodashboard.sidebar-collapsed'
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => readSession())
   const [user, setUser] = useState<User | null>(null)
   const [loadingUser, setLoadingUser] = useState(Boolean(readSession()))
   const [page, setPage] = useState<Page>('home')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
+  const [calendarFocus, setCalendarFocus] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [eventDialog, setEventDialog] = useState<EventDialog>(null)
   const [todoDialog, setTodoDialog] = useState<TodoDialog>(null)
@@ -127,6 +141,10 @@ export default function App() {
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
   }, [notify, user?.id])
+
+  useEffect(() => {
+    if (page !== 'calendar') setCalendarFocus(false)
+  }, [page])
 
   useEffect(() => {
     if (!session) {
@@ -266,6 +284,19 @@ export default function App() {
   function navigate(next: Page) {
     setPage(next)
     setMobileMenuOpen(false)
+    setCalendarFocus(false)
+  }
+
+  function toggleSidebar() {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+      } catch {
+        // Keep the in-memory state when storage is unavailable.
+      }
+      return next
+    })
   }
 
   const createButton = displayPage === 'groups'
@@ -275,7 +306,7 @@ export default function App() {
       : <button className="button button-primary topbar-create" onClick={() => setEventDialog({ start: new Date() })}><Plus size={16} /><span>New event</span></button>
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}${calendarFocus ? ' calendar-focus' : ''}`}>
       {mobileMenuOpen && <button className="mobile-scrim" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation" />}
       <aside className={`sidebar${mobileMenuOpen ? ' sidebar-open' : ''}`}>
         <div className="sidebar-brand">
@@ -287,7 +318,7 @@ export default function App() {
         <div className="sidebar-label">YOUR SPACE</div>
         <nav className="sidebar-nav" aria-label="Main navigation">
           {navigation.map(({ key, label, icon: Icon }) => (
-            <button className={`nav-item${displayPage === key ? ' nav-item-active' : ''}`} key={key} onClick={() => navigate(key)}>
+            <button className={`nav-item${displayPage === key ? ' nav-item-active' : ''}`} key={key} onClick={() => navigate(key)} title={label}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{displayPage === key && <span className="nav-active-dot" />}
             </button>
           ))}
@@ -296,7 +327,7 @@ export default function App() {
         {user.role === 'ADMIN' && <>
           <div className="sidebar-label sidebar-label-spaced">WORKSPACE</div>
           <nav className="sidebar-nav" aria-label="Administration">
-            <button className={`nav-item${displayPage === 'admin' ? ' nav-item-active' : ''}`} onClick={() => navigate('admin')}>
+            <button className={`nav-item${displayPage === 'admin' ? ' nav-item-active' : ''}`} onClick={() => navigate('admin')} title="Administration">
               <ShieldCheck size={18} strokeWidth={1.8} /><span>Administration</span>{displayPage === 'admin' && <span className="nav-active-dot" />}
             </button>
           </nav>
@@ -304,7 +335,7 @@ export default function App() {
 
         <div className="sidebar-bottom">
           <div className="sidebar-quote"><Sparkles size={15} /><p>Good things take<br />one day at a time.</p><span>✳</span></div>
-          <button className={`nav-item profile-nav${displayPage === 'profile' ? ' nav-item-active' : ''}`} onClick={() => navigate('profile')}>
+          <button className={`nav-item profile-nav${displayPage === 'profile' ? ' nav-item-active' : ''}`} onClick={() => navigate('profile')} title="My profile">
             <CircleUserRound size={18} strokeWidth={1.8} /><span>My profile</span>
           </button>
           <div className="sidebar-user">
@@ -317,6 +348,9 @@ export default function App() {
 
       <main className="main-shell">
         <header className="topbar">
+          <button className="icon-button desktop-sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+            {sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+          </button>
           <button className="icon-button mobile-menu-button" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
           <div className="topbar-title"><span className="eyebrow">HOME DASHBOARD</span><strong>{pageTitles[displayPage]}</strong></div>
           <div className="topbar-right">
@@ -327,7 +361,7 @@ export default function App() {
         </header>
 
         {displayPage === 'home' && <DashboardPage user={user} refreshVersion={refreshVersion} onNavigate={navigate} onCreateEvent={() => setEventDialog({ start: new Date() })} onEditEvent={(event) => setEventDialog({ event })} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onNotice={notify} />}
-        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} onCreateEvent={(start, allDay) => setEventDialog({ start, allDay })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
+        {displayPage === 'calendar' && <Suspense fallback={<div className="admin-loading page-loading"><span className="loading-spinner" /> Opening your calendar…</div>}><CalendarPage groups={groups} refreshVersion={refreshVersion} focusMode={calendarFocus} onToggleFocus={() => setCalendarFocus((focused) => !focused)} onCreateEvent={(start, allDay) => setEventDialog({ start, allDay })} onEditEvent={(event) => setEventDialog({ event })} onNotice={notify} /></Suspense>}
         {displayPage === 'todos' && <TodosPage groups={groups} folders={folders} refreshVersion={refreshVersion} onCreateTodo={() => setTodoDialog({})} onEditTodo={(todo) => setTodoDialog({ todo })} onFoldersChanged={async () => { await loadFolders(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
         {displayPage === 'groups' && <GroupsPage groups={groups} currentUser={user} onGroupsChanged={async () => { await loadGroups(); setRefreshVersion((version) => version + 1) }} onNotice={notify} />}
         {displayPage === 'profile' && <ProfilePage user={user} session={session} onSignOut={signOut} onPasswordChanged={passwordChanged} onNotice={notify} />}

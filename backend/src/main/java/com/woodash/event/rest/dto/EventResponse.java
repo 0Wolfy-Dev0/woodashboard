@@ -20,6 +20,7 @@ public class EventResponse {
     private String name;
     private String description;
     private UUID userId;
+    private String userLogin;
     private UUID groupId;
     private boolean allDay;
     private LocalDateTime startTime;
@@ -40,7 +41,8 @@ public class EventResponse {
     public static EventResponse from(Event event, LocalDateTime occurrenceStart, LocalDateTime occurrenceEnd) {
         UUID groupId = event.getSharedGroup() == null ? null : event.getSharedGroup().getId();
         return new EventResponse(event.getId(), event.getName(), event.getDescription(), event.getUser().getId(),
-                groupId, event.isAllDay(), occurrenceStart, occurrenceEnd, event.getStartTime(), event.getEndTime(),
+                event.getUser().getLogin(), groupId, event.isAllDay(), occurrenceStart, occurrenceEnd,
+                event.getStartTime(), event.getEndTime(),
                 event.getRecurrenceUnit(), event.getRecurrenceInterval(), event.getRecurrenceEnd(),
                 event.getCreationTime(), event.getLastModificationTime());
     }

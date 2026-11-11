@@ -21,6 +21,7 @@ account (with admin part), with token and refresh token maybe also
 - Groups with owner-managed membership
 - Password changes, plus admin password resets
 - Admin views for users, events, and todos
+- Collapsible sidebar and a full-page calendar mode
 
 # Architecture
 
@@ -104,11 +105,14 @@ All endpoints except register, login, and refresh require `Authorization: Bearer
 - DELETE    /api/events/:id
 
 **Administration**
-- GET       /api/admin/users
-- GET       /api/admin/events
-- GET       /api/admin/todos
+- GET       /api/admin/users?page=&size=&search=
+- GET       /api/admin/events?page=&size=&search=&from=&to=
+- GET       /api/admin/todos?page=&size=&search=
 - PATCH     /api/admin/users/:id/password
 - DELETE    /api/admin/users/:id
+
+Admin list endpoints are paginated. `page` starts at `0`, `size` is between `1` and `100`, and
+`search` is optional. Event search also accepts `from` and `to` date-time filters.
 
 ## Group sharing
 

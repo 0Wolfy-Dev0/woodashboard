@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -333,30 +334,60 @@ class ApiResourceTest {
         TokenPair adminTokens = login(admin);
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/users")
                 .then().statusCode(200)
-                .body("login", hasItems(admin.login(), regularUser.login()))
-                .body("role", hasItem("ADMIN"))
-                .body("[0].creationTime", notNullValue());
+                .body("page", equalTo(0))
+                .body("items.login", hasItems(admin.login(), regularUser.login()))
+                .body("items.role", hasItem("ADMIN"))
+                .body("items[0].creationTime", notNullValue())
+                .body("total", greaterThanOrEqualTo(2));
+        given().auth().oauth2(adminTokens.accessToken())
+                .queryParam("page", 0).queryParam("size", 1)
+                .when().get("/api/admin/users")
+                .then().statusCode(200)
+                .body("page", equalTo(0))
+                .body("size", equalTo(1))
+                .body("items.size()", equalTo(1))
+                .body("totalPages", greaterThanOrEqualTo(2));
+        given().auth().oauth2(adminTokens.accessToken())
+                .queryParam("page", 1).queryParam("size", 1)
+                .when().get("/api/admin/users")
+                .then().statusCode(200)
+                .body("page", equalTo(1))
+                .body("items.size()", equalTo(1));
+        given().auth().oauth2(adminTokens.accessToken()).queryParam("search", regularUser.login())
+                .when().get("/api/admin/users")
+                .then().statusCode(200)
+                .body("items.login", hasItem(regularUser.login()))
+                .body("items.login", not(hasItem(admin.login())));
+        given().auth().oauth2(adminTokens.accessToken()).queryParam("page", -1)
+                .when().get("/api/admin/users")
+                .then().statusCode(400).body("message", notNullValue());
+        given().auth().oauth2(adminTokens.accessToken()).queryParam("size", 101)
+                .when().get("/api/admin/users")
+                .then().statusCode(400).body("message", notNullValue());
+
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/events")
                 .then().statusCode(200)
-                .body("id", hasItem(eventId))
-                .body("name", hasItem("Cascade event"))
-                .body("userId", hasItem(regularUser.id()));
+                .body("items.id", hasItem(eventId))
+                .body("items.name", hasItem("Cascade event"))
+                .body("items.userId", hasItem(regularUser.id()))
+                .body("items.userLogin", hasItem(regularUser.login()));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/todos")
                 .then().statusCode(200)
-                .body("id", hasItem(todoId))
-                .body("name", hasItem("Cascade todo"))
-                .body("userId", hasItem(regularUser.id()));
+                .body("items.id", hasItem(todoId))
+                .body("items.name", hasItem("Cascade todo"))
+                .body("items.userId", hasItem(regularUser.id()))
+                .body("items.userLogin", hasItem(regularUser.login()));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/todos/{userId}", regularUser.id())
                 .then().statusCode(200).body("size()", equalTo(1)).body("[0].id", equalTo(todoId));
 
         given().auth().oauth2(adminTokens.accessToken()).when().delete("/api/admin/users/{id}", regularUser.id())
                 .then().statusCode(204).body(equalTo(""));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/users")
-                .then().statusCode(200).body("login", not(hasItem(regularUser.login())));
+                .then().statusCode(200).body("items.login", not(hasItem(regularUser.login())));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/events")
-                .then().statusCode(200).body("id", not(hasItem(eventId)));
+                .then().statusCode(200).body("items.id", not(hasItem(eventId)));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/admin/todos")
-                .then().statusCode(200).body("id", not(hasItem(todoId)));
+                .then().statusCode(200).body("items.id", not(hasItem(todoId)));
         given().auth().oauth2(adminTokens.accessToken()).when().get("/api/todos/{userId}", regularUser.id())
                 .then().statusCode(404).body("message", equalTo("Resource not found"));
         given().auth().oauth2(adminTokens.accessToken()).when().delete("/api/admin/users/{id}", UUID.randomUUID())

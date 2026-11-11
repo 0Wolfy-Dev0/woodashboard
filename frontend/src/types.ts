@@ -20,6 +20,14 @@ export interface Session extends TokenResponse {
   userId: string
 }
 
+export interface PageResult<T> {
+  items: T[]
+  page: number
+  size: number
+  total: number
+  totalPages: number
+}
+
 export interface Group {
   id: string
   name: string
@@ -55,6 +63,7 @@ export interface EventItem {
   name: string
   description: string | null
   userId: string
+  userLogin: string
   groupId: string | null
   allDay: boolean
   startTime: string
@@ -85,6 +94,7 @@ export interface TodoItem {
   name: string
   description: string | null
   userId: string
+  userLogin: string
   groupId: string | null
   folderId: string | null
   completed: boolean

@@ -11,6 +11,8 @@ import java.util.UUID;
 
 import com.woodash.auth.security.CurrentUser;
 import com.woodash.common.ErrorCode;
+import com.woodash.common.PageRequest;
+import com.woodash.common.PageResponse;
 import com.woodash.event.entity.Event;
 import com.woodash.event.entity.RecurrenceUnit;
 import com.woodash.event.repository.EventRepository;
@@ -183,8 +185,10 @@ public class EventService {
         eventRepository.delete(event);
     }
 
-    public List<EventResponse> listAll() {
-        return eventRepository.listAllOrdered().stream().map(EventResponse::from).toList();
+    @Transactional
+    public PageResponse<EventResponse> listAllPage(String search, LocalDateTime from, LocalDateTime to,
+            PageRequest page) {
+        return eventRepository.searchAllPage(search, from, to, page).map(EventResponse::from);
     }
 
     private List<EventOccurrence> expand(Event event, LocalDateTime from, LocalDateTime to) {

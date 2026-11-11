@@ -4,6 +4,7 @@ import type {
   EventPayload,
   Group,
   GroupPayload,
+  PageResult,
   TodoFolder,
   TodoFolderPayload,
   TodoItem,
@@ -99,7 +100,7 @@ async function request<T>(
   return (await response.json()) as T
 }
 
-function queryString(values: Record<string, string | boolean | undefined>): string {
+function queryString(values: Record<string, string | number | boolean | undefined>): string {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(values)) {
     if (value !== undefined) query.set(key, String(value))
@@ -227,7 +228,8 @@ export const api = {
   deleteTodo: (id: string) =>
     request<void>(`/todos/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  adminListUsers: () => request<User[]>('/admin/users'),
+  adminListUsers: (params: { page?: number; size?: number; search?: string } = {}) =>
+    request<PageResult<User>>(`/admin/users${queryString(params)}`),
   adminDeleteUser: (id: string) =>
     request<void>(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   adminResetPassword: (id: string, newPassword: string) =>
@@ -235,8 +237,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ newPassword }),
     }),
-  adminListEvents: () => request<EventItem[]>('/admin/events'),
-  adminListTodos: () => request<TodoItem[]>('/admin/todos'),
+  adminListEvents: (params: { page?: number; size?: number; search?: string; from?: string; to?: string } = {}) =>
+    request<PageResult<EventItem>>(`/admin/events${queryString(params)}`),
+  adminListTodos: (params: { page?: number; size?: number; search?: string } = {}) =>
+    request<PageResult<TodoItem>>(`/admin/todos${queryString(params)}`),
 
   logout,
 }
