@@ -365,6 +365,12 @@ a { color: inherit; }
 .toast > span:nth-child(2) { flex: 1; }
 .toast-dismiss { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #a1aaa2; cursor: pointer; }
 .toast-dismiss:hover { background: #f2f4f0; color: #5a695d; }
+.install-prompt { position: fixed; z-index: 100; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(540px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e5e9e2; border-radius: 12px; background: #fff; box-shadow: 0 12px 30px rgba(30,48,36,.14); }
+.install-prompt-icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #55745c; background: #eaf1e8; }
+.install-prompt-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.install-prompt-copy strong { color: #405046; font-size: 10px; }
+.install-prompt-copy small { color: #8e9a90; font-size: 9px; }
+.install-prompt-dismiss { flex: 0 0 auto; }
 .app-loading { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 13px; background: var(--canvas); }
 .app-loading p { margin: 0; color: #8a968c; font-size: 11px; }
 .loading-spinner { width: 19px; height: 19px; border: 2px solid #dfe7df; border-top-color: #52785b; border-radius: 50%; animation: spin .8s linear infinite; }

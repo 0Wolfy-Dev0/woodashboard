@@ -29,6 +29,7 @@ Browser
 - CI builds the API with tests and builds the frontend on PRs, `main`, and tags.
 - Admin lists are paginated with server-side search and event date filters.
 - Group lists and group members are paginated; group responses no longer expand every member.
+- The frontend is installable as a PWA, with an offline app shell and install prompt.
 
 ## Main maintainability risks
 

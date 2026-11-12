@@ -147,6 +147,15 @@ an event affects the whole series. All-day events are stored with a `00:00:00` s
 `23:59:59` end on the selected dates. A window may span at most two years, and one response is
 limited to 10,000 occurrences; event descriptions are limited to 10,000 characters.
 
+## Install as an app
+
+Open the dashboard over HTTPS, or use `localhost` during development. Sign in and choose
+`Install` when the browser offers it. The install prompt adds Woodashboard to the home screen and
+uses the cached app shell when offline.
+
+Plain LAN HTTP does not enable service workers or full PWA installation. Use a trusted local
+certificate, a local HTTPS reverse proxy, or a VPN such as Tailscale.
+
 ## Passwords
 
 Any signed-in user can change their own password with `PATCH /api/me/password`, providing

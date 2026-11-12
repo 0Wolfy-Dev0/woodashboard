@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { api, SESSION_EXPIRED_EVENT } from './api'
 import { EventFormModal } from './components/EventFormModal'
+import { InstallPrompt } from './components/InstallPrompt'
 import { LoginPage } from './components/LoginPage'
 import { TodoFormModal } from './components/TodoFormModal'
 import { Toasts } from './components/Toasts'
@@ -377,6 +378,7 @@ export default function App() {
       {eventDialog && <EventFormModal event={eventDialog.event} initialStart={eventDialog.start} initialAllDay={eventDialog.allDay} groups={groups} onClose={() => setEventDialog(null)} onSave={saveEvent} onDelete={eventDialog.event ? deleteEvent : undefined} />}
       {todoDialog && <TodoFormModal todo={todoDialog.todo} groups={groups} folders={folders} currentUserId={user.id} onClose={() => setTodoDialog(null)} onSave={saveTodo} onDelete={todoDialog.todo ? deleteTodo : undefined} />}
       <Toasts notices={notices} onDismiss={(id) => setNotices((items) => items.filter((item) => item.id !== id))} />
+      <InstallPrompt />
     </div>
   )
 }
