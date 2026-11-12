@@ -1,6 +1,6 @@
 #!/bin/bash
 
-URL="https://thorondor.fr"
+URL="${KIOSK_URL:-https://thorondor.fr/display}"
 
 DISPLAY=:0 XAUTHORITY=/home/kiosk/.Xauthority unclutter -idle 1 -root &
 

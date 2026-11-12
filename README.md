@@ -21,7 +21,7 @@ account (with admin part), with token and refresh token maybe also
 - Groups with owner-managed membership
 - Password changes, plus admin password resets
 - Admin views for users, events, and todos
-- Collapsible sidebar and a full-page calendar mode
+- Collapsible sidebar, full-page calendar, and a read-only wall display
 
 # Architecture
 
@@ -51,6 +51,12 @@ Open the frontend at <http://localhost:8080>. Nginx serves the app and proxies A
 backend. PostgreSQL is published only on `127.0.0.1:5432` so host-run tests can reach it; it is not
 exposed to the LAN. Swagger UI is available only when running the backend in dev mode at
 <http://localhost:8081/q/swagger-ui/>.
+
+## Wall display
+
+Open `http://<server>:8080/display` after signing in. It shows a read-only month calendar and
+open tasks, auto-refreshes every 60 seconds, and hides the normal navigation. Use it as a kiosk
+page; the browser session persists in the kiosk profile.
 
 For frontend development with Vite hot reload, start the backend in dev mode on port `8081`, then run:
 

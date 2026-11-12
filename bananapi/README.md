@@ -144,5 +144,23 @@ bananapi$ sudo chown kiosk:kiosk /home/kiosk/bin/screen-schedule.sh
 
 Then add it to `autostart` file.
 
-## TODO login into app
+## Display URL and login
+
+The kiosk opens the read-only wallboard at `/display`. The default URL is:
+
+```sh
+https://thorondor.fr/display
+```
+
+For a local DNS name, set `KIOSK_URL` before starting the kiosk session. For example, add this to
+`~kiosk/.config/openbox/autostart`:
+
+```sh
+export KIOSK_URL="http://woodashboard.local/display"
+/home/kiosk/bin/start-calendar.sh &
+```
+
+Open the display once and sign in with the account that should own the wallboard. Chromium stores
+the session in `/home/kiosk/.config/chromium`, so it survives reboots. If the session expires, sign
+in again in the kiosk window.
 

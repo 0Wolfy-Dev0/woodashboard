@@ -29,6 +29,7 @@ Browser
 - CI builds the API with tests and builds the frontend on PRs, `main`, and tags.
 - Admin lists are paginated with server-side search and event date filters.
 - Group lists and group members are paginated; group responses no longer expand every member.
+- A read-only `/display` route combines the calendar and open tasks for kiosk screens.
 
 ## Main maintainability risks
 

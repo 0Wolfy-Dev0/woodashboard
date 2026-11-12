@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -29,6 +30,10 @@ import { TodosPage } from './pages/TodosPage'
 import type { EventItem, EventPayload, Group, Page, Session, TodoFolder, TodoItem, TodoPayload, ToastNotice, User } from './types'
 
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
+const DisplayPage = lazy(() => import('./pages/DisplayPage').then((module) => ({ default: module.DisplayPage })))
+
+const DISPLAY_PATH = '/display'
+const isDisplayRoute = window.location.pathname.replace(/\/+$/, '') === DISPLAY_PATH
 
 type EventDialog = { event?: EventItem; start?: Date; allDay?: boolean } | null
 type TodoDialog = { todo?: TodoItem } | null
@@ -270,6 +275,10 @@ export default function App() {
     return <div className="app-loading"><span className="brand-mark"><CalendarDays size={20} /></span><span className="loading-spinner" /><p>Getting your dashboard ready…</p></div>
   }
 
+  if (isDisplayRoute) {
+    return <Suspense fallback={<div className="app-loading"><span className="brand-mark"><CalendarDays size={20} /></span><span className="loading-spinner" /><p>Opening display…</p></div>}><DisplayPage user={user} /></Suspense>
+  }
+
   const displayPage = page === 'admin' && user.role !== 'ADMIN' ? 'home' : page
   const pageTitles: Record<Page, string> = {
     home: 'Overview',
@@ -341,6 +350,9 @@ export default function App() {
 
         <div className="sidebar-bottom">
           <div className="sidebar-quote"><Sparkles size={15} /><p>Good things take<br />one day at a time.</p><span>✳</span></div>
+          <button className="nav-item display-nav" onClick={() => window.open('/display', '_blank', 'noopener')} title="Open display mode">
+            <Monitor size={18} strokeWidth={1.8} /><span>Display mode</span>
+          </button>
           <button className={`nav-item profile-nav${displayPage === 'profile' ? ' nav-item-active' : ''}`} onClick={() => navigate('profile')} title="My profile">
             <CircleUserRound size={18} strokeWidth={1.8} /><span>My profile</span>
           </button>
