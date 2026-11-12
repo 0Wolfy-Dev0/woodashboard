@@ -27,6 +27,7 @@ Browser
 - Small stack with few moving parts. Easy to run and debug.
 - Integration tests cover the main user flows.
 - CI builds the API with tests and builds the frontend on PRs, `main`, and tags.
+- Backend tests start a disposable PostgreSQL container with Testcontainers.
 - Admin lists are paginated with server-side search and event date filters.
 - Group lists and group members are paginated; group responses no longer expand every member.
 
@@ -36,17 +37,16 @@ Browser
 |---|---|---|
 | Hand-maintained OpenAPI | Contract will drift from code | Generate it, or add a schema drift test |
 | `App.tsx` owns too much | Session, dialogs, data, and navigation in one file | Extract `useSession` and workspace-data hooks |
-| One large integration test class | Shared database makes tests stateful and slower | Split by domain and use Testcontainers |
+| One large integration test class | 896-line class slows navigation and review | Split by domain |
 | Hand-rolled JWT | Security-sensitive code needs ongoing review | Consider Quarkus JWT support when convenient |
 | No API healthcheck | Compose cannot tell whether the API is ready | Add an internal health endpoint and healthcheck |
 
 ## Suggested order
 
-1. Add Testcontainers for backend tests.
-2. Split tests by domain.
-3. Extract frontend session logic from `App.tsx`.
-4. Move to a standard JWT library, optional.
-5. Add TLS and deployment hardening when needed.
+1. Split tests by domain.
+2. Extract frontend session logic from `App.tsx`.
+3. Move to a standard JWT library, optional.
+4. Add TLS and deployment hardening when needed.
 
 ## Do not add
 

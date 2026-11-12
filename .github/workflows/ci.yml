@@ -19,25 +19,6 @@ jobs:
     name: Build REST API
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: woodash
-          POSTGRES_USER: woodash
-          POSTGRES_PASSWORD: woodash
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U woodash -d woodash"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DB_URL: jdbc:postgresql://localhost:5432/woodash
-      DB_USER: woodash
-      DB_PASSWORD: woodash
-      JWT_SECRET: ci-only-not-a-production-secret-0123456789abcdef
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

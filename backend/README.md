@@ -64,11 +64,10 @@ schedule, and every account can change its password from the profile page. Admin
 user's password from the administration page. The root `README.md` and Swagger describe the request
 fields.
 
-The endpoint tests use the PostgreSQL instance from `docker/docker-compose.yml`. Create
-`docker/.env` with `DB_PASSWORD` first if it does not exist. Start the database, then run:
+The endpoint tests start a disposable PostgreSQL container with Testcontainers. Docker must be
+running, but the Compose database does not need to be up:
 
 ```shell
-docker compose -f docker/docker-compose.yml up -d db
 cd backend
 ./mvnw test
 ```
